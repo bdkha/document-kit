@@ -1,0 +1,30 @@
+{
+  "name": "document-kit",
+  "version": "0.1.0",
+  "description": "Bộ kit lưu trữ tài liệu dùng chung cho AI workflow giữa FE và BE",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "doc-kit": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev:mcp": "tsx src/mcp/index.ts",
+    "cli": "tsx src/cli/index.ts",
+    "validate": "tsx src/cli/index.ts validate"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}

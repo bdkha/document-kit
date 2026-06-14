@@ -1,0 +1,76 @@
+openapi: 3.0.3
+info:
+  title: User Onboarding API
+  version: 1.0.0
+  description: API phục vụ luồng onboarding người dùng mới.
+servers:
+  - url: https://api.example.com/api/v1
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    OnboardingStep:
+      type: object
+      required:
+        - id
+        - order
+        - completed
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Định danh bước
+        order:
+          type: integer
+          description: Thứ tự hiển thị
+        title:
+          type: string
+        completed:
+          type: boolean
+    OnboardingState:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/OnboardingStep'
+paths:
+  /onboarding/state:
+    get:
+      operationId: getOnboardingState
+      summary: Lấy trạng thái onboarding của người dùng hiện tại
+      responses:
+        '200':
+          description: Trạng thái onboarding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingState'
+        '401':
+          description: Chưa đăng nhập
+  /onboarding/steps/{stepId}/complete:
+    post:
+      operationId: completeStep
+      summary: Đánh dấu hoàn thành một bước
+      parameters:
+        - name: stepId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bước cần hoàn thành
+      responses:
+        '200':
+          description: Đã cập nhật
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingState'
+        '404':
+          description: Không tìm thấy bước

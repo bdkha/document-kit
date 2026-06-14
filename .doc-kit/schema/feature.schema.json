@@ -1,0 +1,71 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://document-kit/schema/feature.schema.json",
+  "title": "Feature metadata",
+  "type": "object",
+  "required": ["id", "title", "status", "version", "updated_at"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z]+-[0-9]+-[a-z0-9-]+$",
+      "description": "Định dạng <PREFIX>-<số>-<slug>, vd F-001-user-onboarding"
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "in-design", "in-dev", "ready", "done"]
+    },
+    "version": { "type": "integer", "minimum": 1 },
+    "summary": { "type": "string" },
+    "owners": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ba": { "type": "string" },
+        "fe": { "type": "string" },
+        "be": { "type": "string" }
+      }
+    },
+    "tickets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["system", "id"],
+        "additionalProperties": false,
+        "properties": {
+          "system": { "type": "string", "enum": ["linear", "jira", "github", "none"] },
+          "id": { "type": "string" },
+          "url": { "type": "string" }
+        }
+      }
+    },
+    "figma": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["url"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "url": { "type": "string" },
+          "nodeId": { "type": "string" }
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "integer", "minimum": 0 },
+        "source": { "type": "string" },
+        "needs_fe_repull": { "type": "boolean" }
+      }
+    },
+    "platforms": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["web", "react-native"] }
+    },
+    "updated_at": { "type": "string", "format": "date" }
+  }
+}

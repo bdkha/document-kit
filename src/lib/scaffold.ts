@@ -1,0 +1,72 @@
+import fs from "node:fs";
+import path from "node:path";
+import { featureDir, featureFiles, templatesDir } from "./paths.js";
+import { listFeatureIds } from "./features.js";
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function slugify(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // bỏ dấu tiếng Việt
+    .replace(/[đĐ]/g, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/** Số thứ tự feature tiếp theo, định dạng 3 chữ số. */
+function nextFeatureNumber(prefix: string): string {
+  const re = new RegExp(`^${prefix}-(\\d+)-`);
+  const max = listFeatureIds().reduce((acc, id) => {
+    const m = id.match(re);
+    return m ? Math.max(acc, parseInt(m[1], 10)) : acc;
+  }, 0);
+  return String(max + 1).padStart(3, "0");
+}
+
+function fillTemplate(content: string, vars: { id: string; title: string; date: string }): string {
+  return content
+    .replace(/F-000-slug/g, vars.id)
+    .replace(/\{Tên feature\}/g, vars.title)
+    .replace(/^title: Tên feature$/m, `title: ${vars.title}`)
+    .replace(/"1970-01-01"/g, `"${vars.date}"`);
+}
+
+function copyTemplate(templateName: string, dest: string, vars: { id: string; title: string; date: string }): void {
+  const src = path.join(templatesDir(), templateName);
+  const raw = fs.readFileSync(src, "utf8");
+  fs.writeFileSync(dest, fillTemplate(raw, vars), "utf8");
+}
+
+export interface NewFeatureResult {
+  id: string;
+  dir: string;
+}
+
+/** Tạo feature mới từ templates. Trả về id + đường dẫn. */
+export function createFeature(title: string, opts: { prefix?: string } = {}): NewFeatureResult {
+  const prefix = opts.prefix ?? "F";
+  const num = nextFeatureNumber(prefix);
+  const id = `${prefix}-${num}-${slugify(title)}`;
+  const dir = featureDir(id);
+  if (fs.existsSync(dir)) throw new Error(`Feature đã tồn tại: ${id}`);
+
+  const f = featureFiles(id);
+  const date = today();
+  const vars = { id, title, date };
+
+  fs.mkdirSync(f.raw, { recursive: true });
+  fs.mkdirSync(f.apiDir, { recursive: true });
+
+  copyTemplate("feature.yaml", f.yaml, vars);
+  copyTemplate("01-business-spec.md", f.business, vars);
+  copyTemplate("02-design-spec.md", f.design, vars);
+  copyTemplate("04-fe-tasks.md", f.feTasks, vars);
+  copyTemplate("CHANGELOG.md", f.changelog, vars);
+  copyTemplate(path.join("00-raw", "README.md"), path.join(f.raw, "README.md"), vars);
+
+  return { id, dir };
+}

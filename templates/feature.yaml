@@ -1,0 +1,31 @@
+id: F-000-slug                  # <PREFIX>-<số>-<slug>
+title: Tên feature
+status: draft                   # draft | in-design | in-dev | ready | done
+version: 1
+summary: Một câu mô tả ngắn gọn feature làm gì.
+
+owners:
+  ba: ""
+  fe: ""
+  be: ""
+
+# Ticket pluggable — bỏ trống nếu chưa gắn
+tickets:
+  - system: linear              # linear | jira | github | none
+    id: ENG-000
+    url: ""
+
+# Link Figma (dùng cho skill compile-feature qua Figma MCP)
+figma:
+  - name: ""
+    url: ""
+    nodeId: ""
+
+api:
+  version: 0                    # 0 = BE chưa đẩy. >=1 khi đã có OpenAPI
+  source: nestjs-swagger
+  needs_fe_repull: false        # cờ set true khi BE đẩy bản API mới
+
+platforms: [web, react-native]
+
+updated_at: "1970-01-01"

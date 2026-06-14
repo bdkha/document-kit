@@ -1,0 +1,25 @@
+id: F-001-user-onboarding
+title: User Onboarding
+status: in-dev
+version: 1
+summary: Một câu mô tả ngắn gọn feature làm gì.
+owners:
+  ba: ''
+  fe: ''
+  be: ''
+tickets:
+  - system: linear
+    id: ENG-000
+    url: ''
+figma:
+  - name: ''
+    url: ''
+    nodeId: ''
+api:
+  version: 1
+  source: nestjs-swagger
+  needs_fe_repull: true
+platforms:
+  - web
+  - react-native
+updated_at: '2026-06-14'
