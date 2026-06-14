@@ -45,6 +45,14 @@ node dist/cli/index.js push-api F-001-user-onboarding ./openapi.yaml
 # BE đẩy trong CI (non-interactive)
 node dist/cli/index.js push-api F-001-user-onboarding ./openapi.yaml --ci
 
+# FE: xem feature có API mới hơn bản đã pull
+node dist/cli/index.js pending
+# FE: xác nhận đã pull (clear pending)
+node dist/cli/index.js ack F-001-user-onboarding
+
+# BE/CI: comment Linear báo API đổi (cần env LINEAR_API_KEY)
+node dist/cli/index.js notify F-001-user-onboarding --note "thêm endpoint"
+
 # Validate toàn bộ kit
 node dist/cli/index.js validate
 

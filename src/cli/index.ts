@@ -5,6 +5,8 @@ import { createFeature } from "../lib/scaffold.js";
 import { listFeatures } from "../lib/features.js";
 import { pushApi } from "../lib/push-api.js";
 import { validateAll } from "../lib/validate.js";
+import { pendingChanges, ackPull } from "../lib/consumer.js";
+import { notifyLinear } from "../lib/notify-linear.js";
 
 const HELP = `doc-kit — CLI cho Document Kit
 
@@ -15,6 +17,9 @@ Dùng:
                    [--paths "/a/**,/b"] [--tags "t1,t2"]
                                               Đẩy OpenAPI lên 1 feature, sinh api-spec.md.
                                               --paths/--tags: cắt spec lớn về đúng feature.
+  doc-kit pending [--state f] [--ci]          (FE) Feature có API mới hơn version đã pull
+  doc-kit ack <feature-id> [--state f]        (FE) Xác nhận đã pull tới API version hiện tại
+  doc-kit notify <feature-id> [--note "..."]  (BE/CI) Comment Linear báo API đổi (cần LINEAR_API_KEY)
   doc-kit validate                            Validate toàn bộ kit (schema + cấu trúc)
   doc-kit help                                Hiện trợ giúp
 
@@ -30,7 +35,7 @@ function has(flag: string): boolean {
   return process.argv.includes(flag);
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const [cmd, ...rest] = process.argv.slice(2);
   const ci = has("--ci");
 
@@ -88,6 +93,44 @@ function main(): void {
       break;
     }
 
+    case "pending": {
+      const items = pendingChanges(arg("--state"));
+      if (ci) {
+        console.log(JSON.stringify(items, null, 2));
+        break;
+      }
+      if (items.length === 0) {
+        console.log("✅ Không có API mới cần pull.");
+        break;
+      }
+      console.log(`Có ${items.length} feature API mới hơn bản bạn đã pull:\n`);
+      for (const it of items) {
+        console.log(`● ${it.id} — ${it.title}  (đã pull v${it.ackedVersion} → hiện v${it.currentVersion})`);
+        if (it.changelog) console.log(it.changelog.split("\n").map((l) => "    " + l).join("\n"));
+        console.log(`    → get_feature rồi: doc-kit ack ${it.id}\n`);
+      }
+      break;
+    }
+
+    case "ack": {
+      const id = rest[0];
+      if (!id) throw new Error("Dùng: doc-kit ack <feature-id>");
+      const res = ackPull(id, arg("--state"));
+      if (ci) console.log(JSON.stringify({ ok: true, ...res }, null, 2));
+      else console.log(`✅ Đã ack ${res.id} ở api v${res.version}.`);
+      break;
+    }
+
+    case "notify": {
+      const id = rest[0];
+      if (!id) throw new Error("Dùng: doc-kit notify <feature-id> [--note ...]");
+      const res = await notifyLinear(id, { note: arg("--note") });
+      if (ci) console.log(JSON.stringify(res, null, 2));
+      else if (res.status === "sent") console.log(`✅ Đã comment Linear (${res.ticket}).`);
+      else console.log(`⏭️  Bỏ qua notify: ${res.reason}`);
+      break;
+    }
+
     case "validate": {
       const { ok, results } = validateAll();
       if (ci) {
@@ -123,9 +166,7 @@ function main(): void {
   }
 }
 
-try {
-  main();
-} catch (e) {
+main().catch((e) => {
   console.error(`❌ ${(e as Error).message}`);
   process.exit(1);
-}
+});

@@ -54,6 +54,14 @@ jobs:
             --tags onboarding --ci --note "CI: ${{ github.sha }}"
           # node kit/dist/cli/index.js push-api F-002-wallet openapi.json --paths "/wallet/**" --ci
 
+      - name: Notify FE qua Linear (tuỳ chọn)
+        if: ${{ env.LINEAR_API_KEY != '' }}
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          node kit/dist/cli/index.js notify F-001-user-onboarding \
+            --note "CI: ${{ github.sha }}" --ci || true
+
       - name: Open PR to kit
         working-directory: kit
         env:

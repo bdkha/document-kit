@@ -91,11 +91,15 @@ export function pushApi(featureId: string, openapiContent: string, opts: PushApi
     .join("\n");
 
   const existing = fs.existsSync(f.changelog) ? fs.readFileSync(f.changelog, "utf8") : `# Changelog — ${meta.title}\n\n`;
-  // Chèn entry ngay sau dòng tiêu đề đầu tiên
   const lines = existing.split("\n");
-  const headerIdx = lines.findIndex((l) => l.startsWith("# "));
-  const insertAt = headerIdx >= 0 ? headerIdx + 1 : 0;
-  lines.splice(insertAt, 0, "", entry);
+  // Chèn trước mục "## " đầu tiên (entry mới nhất lên đầu, giữ phần prose ở trên).
+  // Nếu chưa có mục nào thì chèn sau dòng tiêu đề "# ".
+  let insertAt = lines.findIndex((l) => /^## /.test(l));
+  if (insertAt < 0) {
+    const headerIdx = lines.findIndex((l) => l.startsWith("# "));
+    insertAt = headerIdx >= 0 ? headerIdx + 1 : 0;
+  }
+  lines.splice(insertAt, 0, entry, "");
   fs.writeFileSync(f.changelog, lines.join("\n"), "utf8");
 
   return { featureId, apiVersion, endpoints, apiSpecPath: f.apiSpec };

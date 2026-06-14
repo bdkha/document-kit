@@ -2,3 +2,7 @@ node_modules/
 dist/
 *.log
 .DS_Store
+
+# Consumer pull-state (per FE/BE repo, không commit vào kit chung)
+.doc-kit-state.local.json
+.doc-kit-state.json

@@ -48,6 +48,11 @@ features/<feature-id>/
 Ưu tiên qua MCP: `get_feature(id)` trả trọn gói. Nếu đọc file trực tiếp, thứ tự khuyến nghị:
 `feature.yaml` → `01-business-spec.md` → `03-api/api-spec.md` → `02-design-spec.md` → `04-fe-tasks.md`.
 
+**Trước khi bắt đầu task FE**: gọi `pending_changes()` (hoặc `doc-kit pending`) để biết API có
+đổi so với bản đã pull không. Sau khi đã đọc/áp dụng bản mới: `ack_api_pull(id)` (hoặc
+`doc-kit ack <id>`) để clear pending. State pull lưu riêng theo từng consumer (RN, Next…),
+không nằm trong kit chung.
+
 ## Gắn API → feature (cho BE agent)
 
 Một OpenAPI của BE thường gồm nhiều feature. **AI quyết định mapping lúc push** (nơi AI có

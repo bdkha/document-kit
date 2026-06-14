@@ -10,6 +10,7 @@ import {
 } from "../lib/features.js";
 import { featureFiles, sharedDir } from "../lib/paths.js";
 import { pushApi } from "../lib/push-api.js";
+import { pendingChanges, ackPull } from "../lib/consumer.js";
 import path from "node:path";
 import fs from "node:fs";
 
@@ -122,6 +123,31 @@ server.tool(
       }
     }
     return text(hits.length ? hits.join("\n") : `Không tìm thấy "${query}".`);
+  },
+);
+
+server.tool(
+  "pending_changes",
+  "(FE) Liệt kê feature có API version mới hơn bản consumer này đã pull. FE nên gọi trước khi bắt đầu task để biết API có đổi không.",
+  {},
+  async () => {
+    const items = pendingChanges();
+    if (items.length === 0) return text("Không có API mới cần pull.");
+    return text(JSON.stringify(items, null, 2));
+  },
+);
+
+server.tool(
+  "ack_api_pull",
+  "(FE) Xác nhận consumer đã pull feature tới api version hiện tại (clear pending + cờ broadcast).",
+  { id: z.string() },
+  async ({ id }) => {
+    try {
+      const res = ackPull(id);
+      return text(`✅ Đã ack ${res.id} ở api v${res.version}.`);
+    } catch (e) {
+      return fail((e as Error).message);
+    }
   },
 );
 
