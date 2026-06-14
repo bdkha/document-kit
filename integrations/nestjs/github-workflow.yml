@@ -1,0 +1,75 @@
+# Workflow mẫu (copy vào BE repo: .github/workflows/push-api-docs.yml)
+#
+# Đóng vòng BE → kit: export OpenAPI → cắt theo feature → mở PR vào kit repo.
+# Kit là repo RIÊNG; write path đi qua PR (submodule chỉ để đọc).
+#
+# Cần secrets:
+#   KIT_REPO        = org/document-kit
+#   KIT_PUSH_TOKEN  = PAT/deploy token có quyền ghi kit repo (mở PR)
+#
+# Mapping feature: ưu tiên để AI/người chạy push-api với --tags/--paths.
+# Workflow này demo cách tự động cho 1 feature cố định; nhiều feature thì lặp lại
+# bước push-api với selector tương ứng, hoặc để agent BE gọi qua MCP.
+
+name: Push API docs to Document Kit
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  push-api:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout BE
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install & export OpenAPI
+        run: |
+          npm ci
+          npx ts-node scripts/export-openapi.ts openapi.json
+
+      - name: Checkout kit repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.KIT_REPO }}
+          token: ${{ secrets.KIT_PUSH_TOKEN }}
+          path: kit
+
+      - name: Build kit CLI
+        run: |
+          cd kit
+          npm ci
+          npm run build
+
+      - name: Push API into feature(s)
+        run: |
+          # ── Sửa danh sách feature ↔ selector cho khớp dự án ──
+          node kit/dist/cli/index.js push-api F-001-user-onboarding openapi.json \
+            --tags onboarding --ci --note "CI: ${{ github.sha }}"
+          # node kit/dist/cli/index.js push-api F-002-wallet openapi.json --paths "/wallet/**" --ci
+
+      - name: Open PR to kit
+        working-directory: kit
+        env:
+          GH_TOKEN: ${{ secrets.KIT_PUSH_TOKEN }}
+        run: |
+          BRANCH="api-sync/${{ github.run_id }}"
+          git config user.name "doc-kit-bot"
+          git config user.email "doc-kit-bot@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Không có thay đổi API, bỏ qua."
+            exit 0
+          fi
+          git commit -m "chore(api): sync OpenAPI từ BE ${{ github.sha }}"
+          git push origin "$BRANCH"
+          gh pr create --fill --base main --head "$BRANCH" \
+            --title "API sync từ BE (${{ github.sha }})" \
+            --body "Tự động từ CI BE. Kiểm tra api-spec.md + CHANGELOG trước khi merge."

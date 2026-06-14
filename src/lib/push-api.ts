@@ -3,6 +3,7 @@ import yaml from "js-yaml";
 import { featureFiles } from "./paths.js";
 import { readFeatureMeta, writeFeatureMeta } from "./features.js";
 import { openapiToMarkdown } from "./openapi-to-md.js";
+import { sliceOpenApi, type Selector } from "./openapi-slice.js";
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -13,6 +14,13 @@ export interface PushApiResult {
   apiVersion: number;
   endpoints: number;
   apiSpecPath: string;
+}
+
+export interface PushApiOptions {
+  note?: string;
+  /** Selector để cắt 1 OpenAPI lớn về đúng feature. Bỏ trống = lấy nguyên spec. */
+  paths?: string[];
+  tags?: string[];
 }
 
 function countEndpoints(spec: any): number {
@@ -31,21 +39,25 @@ function countEndpoints(spec: any): number {
  *  - sinh api-spec.md (AI-friendly)
  *  - bump api.version, set needs_fe_repull, ghi CHANGELOG, cập nhật feature.yaml
  */
-export function pushApi(featureId: string, openapiContent: string, opts: { note?: string } = {}): PushApiResult {
+export function pushApi(featureId: string, openapiContent: string, opts: PushApiOptions = {}): PushApiResult {
   const meta = readFeatureMeta(featureId); // throw nếu feature không tồn tại
   const f = featureFiles(featureId);
 
-  let spec: any;
+  let full: any;
   try {
-    spec = yaml.load(openapiContent); // js-yaml parse được cả JSON
+    full = yaml.load(openapiContent); // js-yaml parse được cả JSON
   } catch (e) {
     throw new Error(`OpenAPI không parse được: ${(e as Error).message}`);
   }
-  if (!spec || typeof spec !== "object") throw new Error("OpenAPI rỗng / không hợp lệ.");
-  if (!spec.openapi) throw new Error('Thiếu field "openapi" (phải là OpenAPI 3.x).');
-  if (!spec.paths || Object.keys(spec.paths).length === 0) {
+  if (!full || typeof full !== "object") throw new Error("OpenAPI rỗng / không hợp lệ.");
+  if (!full.openapi) throw new Error('Thiếu field "openapi" (phải là OpenAPI 3.x).');
+  if (!full.paths || Object.keys(full.paths).length === 0) {
     throw new Error("OpenAPI không có endpoint nào (paths rỗng).");
   }
+
+  // Cắt về đúng feature theo selector (do AI/người quyết định). Bỏ trống = nguyên spec.
+  const selector: Selector = { paths: opts.paths, tags: opts.tags };
+  const { spec } = sliceOpenApi(full, selector);
 
   const prevVersion = meta.api?.version ?? 0;
   const apiVersion = prevVersion + 1;

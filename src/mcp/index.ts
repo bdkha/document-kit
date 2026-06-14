@@ -129,15 +129,22 @@ server.tool(
 
 server.tool(
   "push_api_doc",
-  "BE đẩy OpenAPI (3.x) lên 1 feature. Validate, ghi openapi.yaml, sinh api-spec.md, bump version, set cờ FE re-pull, ghi changelog.",
+  "BE đẩy OpenAPI (3.x) lên 1 feature. Bạn (AI) quyết định API nào thuộc feature qua paths/tags; " +
+    "kit cắt deterministic + kéo theo $ref. Bỏ trống paths&tags = lấy nguyên spec. " +
+    "Validate, ghi openapi.yaml, sinh api-spec.md, bump version, set cờ FE re-pull, ghi changelog.",
   {
     id: z.string().describe("feature id"),
-    openapi: z.string().describe("nội dung OpenAPI dạng YAML hoặc JSON"),
+    openapi: z.string().describe("nội dung OpenAPI dạng YAML hoặc JSON (có thể là spec cả service)"),
+    paths: z
+      .array(z.string())
+      .optional()
+      .describe('glob path thuộc feature, vd ["/onboarding/**"]. * = trong 1 segment, ** = nhiều segment.'),
+    tags: z.array(z.string()).optional().describe('tag OpenAPI thuộc feature, vd ["onboarding"].'),
     note: z.string().optional().describe("ghi chú thay đổi cho changelog"),
   },
-  async ({ id, openapi, note }) => {
+  async ({ id, openapi, paths, tags, note }) => {
     try {
-      const res = pushApi(id, openapi, { note });
+      const res = pushApi(id, openapi, { note, paths, tags });
       return text(
         `✅ Đã đẩy API cho ${res.featureId}: v${res.apiVersion}, ${res.endpoints} endpoint.\n` +
           `Sinh api-spec.md, set needs_fe_repull=true.`,

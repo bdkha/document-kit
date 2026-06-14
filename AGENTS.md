@@ -48,6 +48,16 @@ features/<feature-id>/
 Ưu tiên qua MCP: `get_feature(id)` trả trọn gói. Nếu đọc file trực tiếp, thứ tự khuyến nghị:
 `feature.yaml` → `01-business-spec.md` → `03-api/api-spec.md` → `02-design-spec.md` → `04-fe-tasks.md`.
 
+## Gắn API → feature (cho BE agent)
+
+Một OpenAPI của BE thường gồm nhiều feature. **AI quyết định mapping lúc push** (nơi AI có
+context "API nào thuộc feature nào"); kit cắt deterministic và kéo theo `$ref`:
+
+- Qua MCP `push_api_doc(id, openapi, paths?, tags?)` hoặc CLI `doc-kit push-api … --paths/--tags`.
+- `tags` = tag OpenAPI (vd từ `@ApiTags`), `paths` = glob (`*`=1 segment, `**`=nhiều).
+- Bỏ trống selector = lấy nguyên spec (1 service = 1 feature).
+- Đừng tự cắt JSON tay — để kit cắt để không rớt schema. Xem skill `attach-api`.
+
 ## Trạng thái feature (`status`)
 
 `draft` → `in-design` → `in-dev` → `ready` → `done`

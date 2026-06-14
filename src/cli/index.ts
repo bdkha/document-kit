@@ -12,7 +12,9 @@ Dùng:
   doc-kit new "<Tên feature>"                 Tạo feature mới từ template
   doc-kit list [status]                       Liệt kê feature (lọc theo status nếu có)
   doc-kit push-api <feature-id> <openapi> [--ci] [--note "..."]
-                                              Đẩy OpenAPI lên 1 feature, sinh api-spec.md
+                   [--paths "/a/**,/b"] [--tags "t1,t2"]
+                                              Đẩy OpenAPI lên 1 feature, sinh api-spec.md.
+                                              --paths/--tags: cắt spec lớn về đúng feature.
   doc-kit validate                            Validate toàn bộ kit (schema + cấu trúc)
   doc-kit help                                Hiện trợ giúp
 
@@ -68,7 +70,13 @@ function main(): void {
       if (!id || !file) throw new Error("Dùng: doc-kit push-api <feature-id> <openapi-file>");
       if (!fs.existsSync(file)) throw new Error(`Không tìm thấy file OpenAPI: ${file}`);
       const content = fs.readFileSync(path.resolve(file), "utf8");
-      const res = pushApi(id, content, { note: arg("--note") });
+      const splitList = (v?: string) =>
+        v ? v.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+      const res = pushApi(id, content, {
+        note: arg("--note"),
+        paths: splitList(arg("--paths")),
+        tags: splitList(arg("--tags")),
+      });
       if (ci) {
         console.log(JSON.stringify({ ok: true, ...res }, null, 2));
         break;
