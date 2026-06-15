@@ -88,6 +88,17 @@ DOC_KIT_ROOT=examples/sample-docs node dist/cli/index.js list
 - `integrations/nestjs/` — script export OpenAPI + workflow CI mẫu.
 - `.claude/skills/` — skill `compile-feature`, `attach-api`.
 
+## Publish (CI tự động)
+
+`.github/workflows/publish.yml` tự publish lên npm khi push/merge vào `main`, nhưng **chỉ khi
+version trong `package.json` chưa có trên npm**. Quy trình:
+
+1. Bump `version` trong `package.json` (vd `npm version patch`), commit/merge vào `main`.
+2. CI build + validate + check version → `npm publish --provenance --access public` → tạo tag `vX.Y.Z`.
+3. Nếu version chưa đổi, CI skip publish (không lỗi).
+
+Cần secret repo **`NPM_TOKEN`** (npm automation token có quyền publish).
+
 ## Lộ trình
 
 - **MVP**: scaffolding, templates, schema, skill compile, MCP read tools + push_api_doc, CLI.

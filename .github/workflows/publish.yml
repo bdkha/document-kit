@@ -1,0 +1,74 @@
+# Auto-publish package lên npm khi merge/commit vào main.
+#
+# Cơ chế: mỗi lần push main, build + kiểm. Chỉ THỰC SỰ publish khi version trong
+# package.json CHƯA có trên npm (tránh lỗi publish trùng version). => Bump version
+# trong package.json là cách "ra lệnh" publish.
+#
+# Cần secret: NPM_TOKEN (npm automation token, quyền publish package).
+
+name: Publish to npm
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
+
+permissions:
+  contents: write      # để tạo git tag khi publish
+  id-token: write      # để publish kèm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Smoke check (validate content mẫu)
+        env:
+          DOC_KIT_ROOT: ${{ github.workspace }}/examples/sample-docs
+        run: node dist/cli/index.js validate
+
+      - name: Check version chưa publish?
+        id: check
+        run: |
+          NAME=$(node -p "require('./package.json').name")
+          VERSION=$(node -p "require('./package.json').version")
+          echo "name=$NAME"  >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if npm view "$NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "→ $NAME@$VERSION đã có trên npm, bỏ qua publish."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "→ $NAME@$VERSION chưa có, sẽ publish."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish
+        if: steps.check.outputs.publish == 'true'
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Tag version
+        if: steps.check.outputs.publish == 'true'
+        run: |
+          TAG="v${{ steps.check.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
