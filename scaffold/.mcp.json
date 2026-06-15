@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "document-kit": {
+      "command": "npx",
+      "args": ["-y", "-p", "@bdkha/document-kit", "doc-kit", "mcp"],
+      "env": {
+        "DOC_KIT_ROOT": "${workspaceFolder}"
+      }
+    }
+  }
+}

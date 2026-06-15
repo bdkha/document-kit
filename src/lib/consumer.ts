@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { kitRoot } from "./paths.js";
+import { defaultStatePath } from "./paths.js";
 import { listFeatures, readFeatureMeta, writeFeatureMeta } from "./features.js";
 import { featureFiles } from "./paths.js";
 
@@ -9,7 +9,7 @@ import { featureFiles } from "./paths.js";
  * cho từng feature. "pending" = api.version hiện tại > version đã ack.
  *
  * State lưu ở file riêng của consumer (không nằm trong kit chung):
- *   --state <path>  >  env DOC_KIT_STATE  >  <kitRoot>/.doc-kit-state.local.json
+ *   --state <path>  >  env DOC_KIT_STATE  >  <contentRoot>/.doc-kit-state.local.json
  */
 
 export interface ConsumerState {
@@ -20,7 +20,7 @@ export interface ConsumerState {
 export function statePath(explicit?: string): string {
   if (explicit) return path.resolve(explicit);
   if (process.env.DOC_KIT_STATE) return path.resolve(process.env.DOC_KIT_STATE);
-  return path.join(kitRoot(), ".doc-kit-state.local.json");
+  return defaultStatePath();
 }
 
 export function readState(explicit?: string): ConsumerState {
@@ -84,6 +84,7 @@ export function ackPull(id: string, explicit?: string): { id: string; version: n
   const meta = readFeatureMeta(id); // throw nếu không có
   const version = meta.api?.version ?? 0;
   const state = readState(explicit);
+  if (!state.consumer && process.env.DOC_KIT_CONSUMER) state.consumer = process.env.DOC_KIT_CONSUMER;
   state.acked[id] = version;
   writeState(state, explicit);
 

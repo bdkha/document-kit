@@ -1,17 +1,17 @@
 # Workflow mẫu (copy vào BE repo: .github/workflows/push-api-docs.yml)
 #
-# Đóng vòng BE → kit: export OpenAPI → cắt theo feature → mở PR vào kit repo.
-# Kit là repo RIÊNG; write path đi qua PR (submodule chỉ để đọc).
+# Đóng vòng BE → docs repo: export OpenAPI → cắt theo feature → mở PR vào REPO DOCS của dự án.
+# Tool dùng qua npx (@bdkha/document-kit); content = repo docs riêng (checkout bằng token).
 #
 # Cần secrets:
-#   KIT_REPO        = org/document-kit
-#   KIT_PUSH_TOKEN  = PAT/deploy token có quyền ghi kit repo (mở PR)
+#   DOCS_REPO        = org/<project>-docs   (repo docs của dự án này)
+#   DOCS_PUSH_TOKEN  = PAT/deploy token có quyền ghi repo docs (mở PR)
+#   LINEAR_API_KEY   = (tuỳ chọn) để comment Linear báo FE
 #
 # Mapping feature: ưu tiên để AI/người chạy push-api với --tags/--paths.
-# Workflow này demo cách tự động cho 1 feature cố định; nhiều feature thì lặp lại
-# bước push-api với selector tương ứng, hoặc để agent BE gọi qua MCP.
+# Nhiều feature → lặp lại bước push-api với selector tương ứng.
 
-name: Push API docs to Document Kit
+name: Push API docs
 
 on:
   push:
@@ -34,38 +34,31 @@ jobs:
           npm ci
           npx ts-node scripts/export-openapi.ts openapi.json
 
-      - name: Checkout kit repo
+      - name: Checkout repo docs (content)
         uses: actions/checkout@v4
         with:
-          repository: ${{ secrets.KIT_REPO }}
-          token: ${{ secrets.KIT_PUSH_TOKEN }}
-          path: kit
-
-      - name: Build kit CLI
-        run: |
-          cd kit
-          npm ci
-          npm run build
+          repository: ${{ secrets.DOCS_REPO }}
+          token: ${{ secrets.DOCS_PUSH_TOKEN }}
+          path: docs-content
 
       - name: Push API into feature(s)
-        run: |
-          # ── Sửa danh sách feature ↔ selector cho khớp dự án ──
-          node kit/dist/cli/index.js push-api F-001-user-onboarding openapi.json \
-            --tags onboarding --ci --note "CI: ${{ github.sha }}"
-          # node kit/dist/cli/index.js push-api F-002-wallet openapi.json --paths "/wallet/**" --ci
-
-      - name: Notify FE qua Linear (tuỳ chọn)
-        if: ${{ env.LINEAR_API_KEY != '' }}
         env:
+          DOC_KIT_ROOT: ${{ github.workspace }}/docs-content
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         run: |
-          node kit/dist/cli/index.js notify F-001-user-onboarding \
+          # ── Sửa danh sách feature ↔ selector cho khớp dự án ──
+          npx -y -p @bdkha/document-kit doc-kit push-api F-001-user-onboarding openapi.json \
+            --tags onboarding --ci --note "CI: ${{ github.sha }}"
+          # npx -y -p @bdkha/document-kit doc-kit push-api F-002-wallet openapi.json --paths "/wallet/**" --ci
+
+          # Notify FE qua Linear (bỏ qua nếu không có key)
+          npx -y -p @bdkha/document-kit doc-kit notify F-001-user-onboarding \
             --note "CI: ${{ github.sha }}" --ci || true
 
-      - name: Open PR to kit
-        working-directory: kit
+      - name: Open PR to repo docs
+        working-directory: docs-content
         env:
-          GH_TOKEN: ${{ secrets.KIT_PUSH_TOKEN }}
+          GH_TOKEN: ${{ secrets.DOCS_PUSH_TOKEN }}
         run: |
           BRANCH="api-sync/${{ github.run_id }}"
           git config user.name "doc-kit-bot"

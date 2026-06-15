@@ -1,0 +1,26 @@
+# Cấu hình Document Kit
+version: 1
+
+# Hệ thống ticket mặc định (pluggable). Mỗi dự án sau này có thể override.
+ticket:
+  default_system: linear        # linear | jira | github | none
+  systems:
+    linear:
+      url_template: "https://linear.app/{org}/issue/{id}"
+      id_pattern: "^[A-Z]+-[0-9]+$"   # vd ENG-123
+    jira:
+      url_template: "https://{org}.atlassian.net/browse/{id}"
+      id_pattern: "^[A-Z]+-[0-9]+$"
+    github:
+      url_template: "https://github.com/{org}/{repo}/issues/{id}"
+      id_pattern: "^[0-9]+$"
+
+# Quy ước feature id: <prefix>-<số tăng dần>-<slug>
+feature:
+  id_prefix: "F"
+  status_flow: [draft, in-design, in-dev, ready, done]
+
+# Nguồn API
+api:
+  source: nestjs-swagger        # gợi ý cách BE sinh OpenAPI
+  spec_format: openapi-3        # openapi-3 | openapi-3.1

@@ -1,0 +1,10 @@
+# Secrets & per-machine config
+.env
+
+# Consumer pull-state (riêng từng máy/consumer)
+.doc-kit-state.local.json
+.doc-kit-state.json
+
+node_modules/
+*.log
+.DS_Store

@@ -3,36 +3,79 @@ import path from "node:path";
 import fs from "node:fs";
 
 /**
- * Gốc của kit. Local-first: ưu tiên env DOC_KIT_ROOT, nếu không thì suy ra từ vị trí
- * file build (dist/lib -> gốc repo). Cho phép FE/BE trỏ MCP vào bản clone/submodule.
+ * Hai gốc tách biệt khi đóng gói thành npm package:
+ *
+ *  - packageRoot: nơi asset của TOOL được ship (templates/, scaffold/, .doc-kit/schema).
+ *    Suy ra từ vị trí file build (dist/lib -> ../../ = gốc package đã cài).
+ *
+ *  - contentRoot: nơi DOCS của dự án nằm (features/, shared/, .doc-kit/config.yaml, .env).
+ *    Ưu tiên env DOC_KIT_ROOT; nếu không, dò ngược từ cwd tìm marker; cuối cùng = cwd.
  */
-export function kitRoot(): string {
-  const fromEnv = process.env.DOC_KIT_ROOT;
-  if (fromEnv && fs.existsSync(fromEnv)) return path.resolve(fromEnv);
 
-  // dist/lib/paths.js -> ../../ = gốc repo
+/** Gốc package (tool) — chứa asset shipped. */
+export function packageRoot(): string {
+  // dist/lib/paths.js -> ../../ = gốc package
   const here = path.dirname(fileURLToPath(import.meta.url));
   return path.resolve(here, "..", "..");
 }
 
+function hasContentMarker(dir: string): boolean {
+  return (
+    fs.existsSync(path.join(dir, ".doc-kit", "config.yaml")) ||
+    fs.existsSync(path.join(dir, "features"))
+  );
+}
+
+/** Gốc content (docs của dự án). */
+export function contentRoot(): string {
+  const fromEnv = process.env.DOC_KIT_ROOT;
+  if (fromEnv && fs.existsSync(fromEnv)) return path.resolve(fromEnv);
+
+  // Dò ngược từ cwd tìm workspace docs.
+  let dir = process.cwd();
+  for (;;) {
+    if (hasContentMarker(dir)) return dir;
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return process.cwd();
+}
+
+// ── Asset của tool (packageRoot) ─────────────────────────────────────────────
+
+export function templatesDir(): string {
+  return path.join(packageRoot(), "templates");
+}
+
+export function scaffoldDir(): string {
+  return path.join(packageRoot(), "scaffold");
+}
+
+export function schemaPath(): string {
+  return path.join(packageRoot(), ".doc-kit", "schema", "feature.schema.json");
+}
+
+// ── Content của dự án (contentRoot) ──────────────────────────────────────────
+
 export function featuresDir(): string {
-  return path.join(kitRoot(), "features");
+  return path.join(contentRoot(), "features");
 }
 
 export function featureDir(id: string): string {
   return path.join(featuresDir(), id);
 }
 
-export function templatesDir(): string {
-  return path.join(kitRoot(), "templates");
-}
-
 export function sharedDir(): string {
-  return path.join(kitRoot(), "shared");
+  return path.join(contentRoot(), "shared");
 }
 
-export function schemaPath(): string {
-  return path.join(kitRoot(), ".doc-kit", "schema", "feature.schema.json");
+export function configPath(): string {
+  return path.join(contentRoot(), ".doc-kit", "config.yaml");
+}
+
+export function defaultStatePath(): string {
+  return path.join(contentRoot(), ".doc-kit-state.local.json");
 }
 
 /** Đường dẫn các file con của một feature. */

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
-import { createFeature } from "../lib/scaffold.js";
+import { loadDocKitEnv } from "../lib/env.js";
+import { createFeature, initWorkspace } from "../lib/scaffold.js";
 import { listFeatures } from "../lib/features.js";
 import { pushApi } from "../lib/push-api.js";
 import { validateAll } from "../lib/validate.js";
@@ -11,6 +12,8 @@ import { notifyLinear } from "../lib/notify-linear.js";
 const HELP = `doc-kit — CLI cho Document Kit
 
 Dùng:
+  doc-kit init [thư-mục]                       Khởi tạo workspace docs cho 1 dự án
+  doc-kit mcp                                  Chạy MCP server (stdio, local-first)
   doc-kit new "<Tên feature>"                 Tạo feature mới từ template
   doc-kit list [status]                       Liệt kê feature (lọc theo status nếu có)
   doc-kit push-api <feature-id> <openapi> [--ci] [--note "..."]
@@ -39,7 +42,24 @@ async function main(): Promise<void> {
   const [cmd, ...rest] = process.argv.slice(2);
   const ci = has("--ci");
 
+  // MCP: uỷ quyền sang server (module tự connect khi import). Không nạp env trước
+  // vì DOC_KIT_ROOT do client truyền qua env process.
+  if (cmd === "mcp") {
+    await import("../mcp/index.js");
+    return;
+  }
+
+  loadDocKitEnv();
+
   switch (cmd) {
+    case "init": {
+      const { dir, files } = initWorkspace(rest.find((r) => !r.startsWith("--")));
+      console.log(`✅ Đã khởi tạo workspace docs: ${dir}`);
+      console.log(`   ${files.join(", ")}`);
+      console.log(`   Bước tiếp: cp .env.example .env  →  doc-kit new "Feature đầu tiên"`);
+      break;
+    }
+
     case "new": {
       const title = rest[0];
       if (!title) throw new Error('Thiếu tên feature. Vd: doc-kit new "User Onboarding"');

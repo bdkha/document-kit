@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { featureDir, featureFiles, templatesDir } from "./paths.js";
+import { featureDir, featureFiles, templatesDir, scaffoldDir } from "./paths.js";
 import { listFeatureIds } from "./features.js";
 
 function today(): string {
@@ -44,6 +44,29 @@ function copyTemplate(templateName: string, dest: string, vars: { id: string; ti
 export interface NewFeatureResult {
   id: string;
   dir: string;
+}
+
+export interface InitResult {
+  dir: string;
+  files: string[];
+}
+
+/**
+ * Khởi tạo workspace docs cho 1 dự án: copy scaffold/ vào target.
+ * `_gitignore` (đặt vậy vì npm strip .gitignore) được đổi tên thành `.gitignore`.
+ */
+export function initWorkspace(targetDir?: string): InitResult {
+  const dest = targetDir ? path.resolve(targetDir) : process.cwd();
+  if (fs.existsSync(path.join(dest, ".doc-kit", "config.yaml"))) {
+    throw new Error(`Đã là workspace docs rồi (có .doc-kit/config.yaml): ${dest}`);
+  }
+  fs.mkdirSync(dest, { recursive: true });
+  fs.cpSync(scaffoldDir(), dest, { recursive: true });
+
+  const gi = path.join(dest, "_gitignore");
+  if (fs.existsSync(gi)) fs.renameSync(gi, path.join(dest, ".gitignore"));
+
+  return { dir: dest, files: fs.readdirSync(dest).sort() };
 }
 
 /** Tạo feature mới từ templates. Trả về id + đường dẫn. */

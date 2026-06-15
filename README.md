@@ -1,92 +1,97 @@
 # Document Kit
 
-Bộ kit lưu trữ tài liệu **dùng chung cho AI workflow** giữa FE và BE.
+Bộ kit (npm package) lưu trữ tài liệu **dùng chung cho AI workflow** giữa FE và BE.
 
 Một nơi duy nhất để: biến docs nghiệp vụ thô + Figma của BA thành spec mà AI đọc được,
 để BE đẩy ngược API docs (OpenAPI), và để FE pull trọn context của một feature về làm task.
 
 ```
-BA (docs thô + Figma) ──▶ [ DOCUMENT KIT ] ◀── BE (OpenAPI)
-                                 │
-                                 └──▶ FE pull context → AI làm task
+BA (docs thô + Figma) ──▶ [ DOCS REPO của dự án ] ◀── BE (OpenAPI)
+                                  │
+                                  └──▶ FE pull context → AI làm task
 ```
 
-## Thành phần
+## Hai phần tách biệt
 
-- **Git repo** (markdown/yaml): storage + source of truth, tổ chức theo feature.
-- **MCP server** (`src/mcp`): lớp truy cập cho AI agent — đọc feature, search, push API.
-- **CLI `doc-kit`** (`src/cli`): tạo feature, validate, push OpenAPI (chạy tay hoặc trong CI).
-- **Skill `compile-feature`**: Claude biên dịch docs thô + Figma → spec, người review.
+- **Tool** (package này, dùng chung mọi dự án): CLI `doc-kit` + MCP server + templates + schema.
+- **Content** (repo docs riêng từng dự án): `features/`, `shared/`, `.doc-kit/config.yaml`, `.env`.
 
-## Cấu trúc
+Tool cài/chạy qua npm; mỗi dự án có một repo docs riêng tạo bằng `doc-kit init`.
 
-```
-features/<feature-id>/   # mỗi feature self-contained (xem AGENTS.md)
-shared/                  # glossary, data-models, conventions dùng chung
-templates/               # template cho từng loại doc
-.doc-kit/                # schema + config
-src/                     # MCP server + CLI (TypeScript)
-.claude/skills/          # skill cho Claude Code
-AGENTS.md                # hiến pháp cho AI agent — đọc trước
-```
-
-## Bắt đầu nhanh
+## Bắt đầu cho một dự án mới
 
 ```bash
-npm install
-npm run build
+# Tạo repo docs cho dự án (chạy trong thư mục repo docs trống)
+npx -p @bdkha/document-kit doc-kit init
+cp .env.example .env            # điền LINEAR_API_KEY, DOC_KIT_CONSUMER…
 
-# Tạo feature mới
-node dist/cli/index.js new "User Onboarding"
+# Tạo feature
+npx -p @bdkha/document-kit doc-kit new "User Onboarding"
 
-# BE đẩy OpenAPI lên (chạy tay)
-node dist/cli/index.js push-api F-001-user-onboarding ./openapi.yaml
+# BE đẩy OpenAPI vào 1 feature (AI chọn paths/tags, kit cắt deterministic)
+npx -p @bdkha/document-kit doc-kit push-api F-001-user-onboarding ./openapi.json --tags onboarding
 
-# BE đẩy trong CI (non-interactive)
-node dist/cli/index.js push-api F-001-user-onboarding ./openapi.yaml --ci
+# FE: xem API mới so với bản đã pull, rồi xác nhận
+npx -p @bdkha/document-kit doc-kit pending
+npx -p @bdkha/document-kit doc-kit ack F-001-user-onboarding
 
-# FE: xem feature có API mới hơn bản đã pull
-node dist/cli/index.js pending
-# FE: xác nhận đã pull (clear pending)
-node dist/cli/index.js ack F-001-user-onboarding
-
-# BE/CI: comment Linear báo API đổi (cần env LINEAR_API_KEY)
-node dist/cli/index.js notify F-001-user-onboarding --note "thêm endpoint"
-
-# Validate toàn bộ kit
-node dist/cli/index.js validate
-
-# Chạy MCP server (local-first, đọc repo này)
-node dist/mcp/index.js
+# Validate toàn bộ docs
+npx -p @bdkha/document-kit doc-kit validate
 ```
 
-### Cấu hình MCP cho Claude Code
+## Cấu hình (per-project)
 
-Thêm vào `.mcp.json` của dự án FE/BE (trỏ tới bản clone kit):
+| Loại | Ở đâu | Ví dụ |
+|---|---|---|
+| Secret / per-machine / per-consumer | `.env` (gitignore) | `LINEAR_API_KEY`, `DOC_KIT_ROOT`, `DOC_KIT_STATE`, `DOC_KIT_CONSUMER` |
+| Structural, commit được | `.doc-kit/config.yaml` | ticket url template, status flow, id prefix |
+
+Thứ tự ưu tiên: **CLI flag > `.env` > `.doc-kit/config.yaml` > default**. Tool dò content root
+qua `DOC_KIT_ROOT`, hoặc dò ngược từ cwd tìm `.doc-kit/config.yaml`.
+
+## MCP cho Claude Code
+
+`doc-kit init` đã tạo sẵn `.mcp.json` trỏ MCP vào repo docs đó:
 
 ```json
 {
   "mcpServers": {
     "document-kit": {
-      "command": "node",
-      "args": ["/đường/dẫn/document-kit/dist/mcp/index.js"],
-      "env": { "DOC_KIT_ROOT": "/đường/dẫn/document-kit" }
+      "command": "npx",
+      "args": ["-y", "-p", "@bdkha/document-kit", "doc-kit", "mcp"],
+      "env": { "DOC_KIT_ROOT": "${workspaceFolder}" }
     }
   }
 }
 ```
 
-## Tiêu dùng từ dự án FE/BE
+## Tiêu dùng từ repo FE/BE
 
-Add kit này làm **git submodule** để có bản versioned, offline:
+Add repo docs của dự án làm submodule để đọc offline, versioned:
 
 ```bash
-git submodule add <repo-url> docs/kit
+git submodule add <repo-docs-url> docs/kit
 ```
 
-Rồi trỏ `DOC_KIT_ROOT` của MCP vào `docs/kit`.
+## Phát triển tool này
+
+```bash
+npm install
+npm run build
+# Chạy lệnh trên content mẫu:
+DOC_KIT_ROOT=examples/sample-docs node dist/cli/index.js list
+```
+
+- `src/` — CLI + MCP + lib (TypeScript, ESM).
+- `templates/`, `scaffold/`, `.doc-kit/schema/` — asset shipped trong package.
+- `examples/sample-docs/` — content mẫu để dev/test (không publish).
+- `integrations/nestjs/` — script export OpenAPI + workflow CI mẫu.
+- `.claude/skills/` — skill `compile-feature`, `attach-api`.
 
 ## Lộ trình
 
-- **MVP (hiện tại)**: scaffolding, templates, schema, skill compile, MCP read tools + push_api_doc, CLI.
-- **Phase 2**: semantic search, remote MCP server dùng chung, web UI, webhook báo FE khi API đổi.
+- **MVP**: scaffolding, templates, schema, skill compile, MCP read tools + push_api_doc, CLI.
+- **Phase 2A**: AI-driven OpenAPI slicing + NestJS integration.
+- **Phase 2B**: notify FE (PULL pending/ack + Linear push tuỳ chọn).
+- **Phase 3 (hiện tại)**: đóng gói npm + `doc-kit init` + config qua `.env`.
+- **Tiếp theo**: semantic search, remote MCP server dùng chung.
