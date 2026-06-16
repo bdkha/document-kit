@@ -5,6 +5,7 @@ import { loadDocKitEnv } from "../lib/env.js";
 import { createFeature, initWorkspace } from "../lib/scaffold.js";
 import { addRaw } from "../lib/add-raw.js";
 import { addFigmaLinks } from "../lib/figma.js";
+import { installSkills } from "../lib/install-skills.js";
 import { listFeatures } from "../lib/features.js";
 import { pushApi } from "../lib/push-api.js";
 import { validateAll } from "../lib/validate.js";
@@ -16,6 +17,8 @@ const HELP = `doc-kit — CLI cho Document Kit
 Dùng:
   doc-kit init [thư-mục]                       Khởi tạo workspace docs cho 1 dự án
   doc-kit mcp                                  Chạy MCP server (stdio, local-first)
+  doc-kit install-skills [--global] [dir]      Cài skills vào .claude/skills (project) hoặc
+                                              ~/.claude/skills (--global) để Claude Code dùng
   doc-kit new "<Tên feature>"                 Tạo feature mới từ template
   doc-kit add-raw <feature-id> <path|url...>  Nạp docs thô vào 00-raw/ (file, link Notion,
                                               link Figma). Notion: fetch nội dung + trích Figma.
@@ -93,6 +96,19 @@ async function main(): Promise<void> {
       const { added, total } = addFigmaLinks(id, [{ url, name: arg("--name"), nodeId: arg("--node") }]);
       if (ci) console.log(JSON.stringify({ ok: true, added, total }, null, 2));
       else console.log(`✅ ${added ? "Đã thêm" : "Đã có (bỏ qua)"} Figma link. Tổng: ${total}.`);
+      break;
+    }
+
+    case "install-skills": {
+      const dir = rest.find((r) => !r.startsWith("--"));
+      const { dest, installed } = installSkills({ global: has("--global"), dir });
+      if (ci) {
+        console.log(JSON.stringify({ ok: true, dest, installed }, null, 2));
+        break;
+      }
+      console.log(`✅ Đã cài ${installed.length} skill vào: ${dest}`);
+      console.log(`   ${installed.join(", ")}`);
+      console.log(`   Mở project trong Claude Code → gõ /${installed[0] ?? "skill"} để dùng.`);
       break;
     }
 

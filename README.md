@@ -69,6 +69,25 @@ qua `DOC_KIT_ROOT`, hoặc dò ngược từ cwd tìm `.doc-kit/config.yaml`.
 }
 ```
 
+## Skills cho Claude Code (dùng MCP Notion/Figma + suy luận)
+
+Kit kèm 3 skill, tận dụng MCP kết nối sẵn của Claude (không cần token CLI):
+
+- **`ingest-feature`** — kéo docs từ Notion + Figma vào feature (Notion MCP đọc nội dung,
+  Figma MCP phân tích frame, model map frame↔usecase/AC).
+- **`compile-feature`** — biên dịch 00-raw + Figma → business/design spec.
+- **`attach-api`** — BE gắn OpenAPI vào đúng feature.
+
+Claude Code chỉ tự nạp skills ở **project root**, không nạp trong submodule. Cài để dùng ở bất kỳ repo:
+
+```bash
+# Trong repo docs / FE / BE:
+npx -p @bdkha/document-kit doc-kit install-skills          # -> ./.claude/skills
+npx -p @bdkha/document-kit doc-kit install-skills --global # -> ~/.claude/skills (mọi project)
+```
+
+Rồi trong Claude Code gõ `/ingest-feature`, `/compile-feature`, `/attach-api`.
+
 ## Tiêu dùng từ repo FE/BE
 
 Add repo docs của dự án làm submodule để đọc offline, versioned:

@@ -52,6 +52,11 @@ export function scaffoldDir(): string {
   return path.join(packageRoot(), "scaffold");
 }
 
+/** Thư mục skills canonical được ship (trong scaffold/.claude/skills). */
+export function skillsSourceDir(): string {
+  return path.join(packageRoot(), "scaffold", ".claude", "skills");
+}
+
 export function schemaPath(): string {
   return path.join(packageRoot(), ".doc-kit", "schema", "feature.schema.json");
 }
