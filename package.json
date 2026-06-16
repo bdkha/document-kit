@@ -1,6 +1,6 @@
 {
   "name": "@bdkha/document-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Bộ kit lưu trữ tài liệu dùng chung cho AI workflow giữa FE và BE (git + MCP, local-first)",
   "license": "MIT",
   "type": "module",

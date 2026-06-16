@@ -43,6 +43,49 @@ npx -p @bdkha/document-kit doc-kit ack F-001-user-onboarding
 npx -p @bdkha/document-kit doc-kit validate
 ```
 
+## Luồng theo vai trò trong Claude Code
+
+Cài skills một lần để dùng slash command ở mọi repo:
+`npx -p @bdkha/document-kit doc-kit install-skills --global`
+
+Một feature đi qua 3 vai trò theo vòng: **BA → BE → FE** (và lặp lại khi API/đổi nghiệp vụ).
+
+### 🧩 BA — biến nghiệp vụ thô + Figma thành spec
+
+| # | Làm gì | Trong Claude Code |
+|---|--------|-------------------|
+| 1 | Tạo feature | "Tạo feature User Onboarding" → `doc-kit new` (id `F-001-...`) |
+| 2 | Nạp nguồn | **`/ingest-feature`** đưa link Notion + Figma → Claude đọc qua Notion/Figma MCP, lưu `00-raw/`, map Figma frame ↔ usecase/AC |
+| 3 | Biên dịch spec | **`/compile-feature`** → sinh `01-business-spec.md` + `02-design-spec.md` (BA review) |
+| 4 | Chốt | Sửa Open questions, đặt `status: in-design`, commit/PR repo docs |
+
+→ Đầu ra: business-spec (Goal, User Stories, **Acceptance Criteria**, Business Rules) + design-spec.
+
+### ⚙️ BE Dev — code API rồi đẩy ngược lên kit
+
+| # | Làm gì | Trong Claude Code |
+|---|--------|-------------------|
+| 1 | Planning | Skill planning gọi `find_feature(ticket)` → `get_feature(id)` → đọc business-spec để plan API theo AC |
+| 2 | Code | Hiện thực endpoint (NestJS…) |
+| 3 | Export OpenAPI | `scripts/export-openapi.ts` (xem `integrations/nestjs/`) → `openapi.json` |
+| 4 | Gắn API vào feature | **`/attach-api`**: chọn `--tags`/`--paths` thuộc feature → `push_api_doc` → kit sinh `api-spec.md`, bump `api.version`, set `needs_fe_repull`, `status: in-dev` |
+| 5 | Báo FE | `doc-kit notify <id>` (comment Linear) — hoặc để CI tự làm |
+
+→ Đầu ra: `03-api/openapi.yaml` (nguồn) + `api-spec.md` (AI-friendly) gắn đúng feature.
+
+### 💻 FE Dev — pull context, làm task RN/Next
+
+| # | Làm gì | Trong Claude Code |
+|---|--------|-------------------|
+| 1 | Xem API có đổi | `pending_changes()` (CLI: `doc-kit pending`) |
+| 2 | Planning | `find_feature(ticket)` → `get_feature(id)` → plan theo **AC + api-spec + design-spec** |
+| 3 | Code | Làm UI/màn hình, ghép API theo `api-spec`, state loading/empty/error theo `design-spec` |
+| 4 | Xác nhận đã pull | `ack_api_pull(id)` (CLI: `doc-kit ack <id>`) để clear cờ pending |
+
+→ Mỗi task tự đủ ngữ cảnh: AC nào, endpoint nào, screen nào.
+
+> Cách nối Bước-0 vào skill planning có sẵn của bạn: xem [`integrations/consumer/`](integrations/consumer/README.md).
+
 ## Cấu hình (per-project)
 
 | Loại | Ở đâu | Ví dụ |
