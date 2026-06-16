@@ -6,7 +6,7 @@ import { createFeature, initWorkspace } from "../lib/scaffold.js";
 import { addRaw } from "../lib/add-raw.js";
 import { addFigmaLinks } from "../lib/figma.js";
 import { installSkills } from "../lib/install-skills.js";
-import { listFeatures } from "../lib/features.js";
+import { listFeatures, findFeatures, renderFeatureBundle } from "../lib/features.js";
 import { pushApi } from "../lib/push-api.js";
 import { validateAll } from "../lib/validate.js";
 import { pendingChanges, ackPull } from "../lib/consumer.js";
@@ -25,6 +25,9 @@ Dùng:
                                               [--no-figma] không tự thêm Figma link tìm thấy.
   doc-kit add-figma <feature-id> <url>        Thêm Figma link vào feature.yaml [--name "..."] [--node 1:23]
   doc-kit list [status]                       Liệt kê feature (lọc theo status nếu có)
+  doc-kit context <feature-id>                In trọn gói context feature (cho planning)
+  doc-kit find [--ticket X] [--query Y] [--status S]
+                                              Tìm feature theo ticket/từ khoá/status
   doc-kit push-api <feature-id> <openapi> [--ci] [--note "..."]
                    [--paths "/a/**,/b"] [--tags "t1,t2"]
                                               Đẩy OpenAPI lên 1 feature, sinh api-spec.md.
@@ -137,6 +140,30 @@ async function main(): Promise<void> {
         const apiV = m.api?.version ?? 0;
         const repull = m.api?.needs_fe_repull ? "  ⚠️ FE re-pull" : "";
         console.log(`${m.id}  [${m.status}]  api v${apiV}${repull}  — ${m.title}`);
+      }
+      break;
+    }
+
+    case "context": {
+      const id = rest.find((r) => !r.startsWith("--"));
+      if (!id) throw new Error("Dùng: doc-kit context <feature-id>");
+      console.log(renderFeatureBundle(id));
+      break;
+    }
+
+    case "find": {
+      const items = findFeatures({ ticket: arg("--ticket"), query: arg("--query"), status: arg("--status") });
+      if (ci) {
+        console.log(JSON.stringify(items, null, 2));
+        break;
+      }
+      if (items.length === 0) {
+        console.log("Không tìm thấy feature khớp.");
+        break;
+      }
+      for (const m of items) {
+        const tk = (m.tickets ?? []).map((t) => t.id).join(",");
+        console.log(`${m.id}  [${m.status}]  api v${m.api?.version ?? 0}${tk ? `  (${tk})` : ""}  — ${m.title}`);
       }
       break;
     }

@@ -88,13 +88,21 @@ npx -p @bdkha/document-kit doc-kit install-skills --global # -> ~/.claude/skills
 
 Rồi trong Claude Code gõ `/ingest-feature`, `/compile-feature`, `/attach-api`.
 
-## Tiêu dùng từ repo FE/BE
+## Tiêu dùng từ repo FE/BE (đọc docs lúc planning)
 
-Add repo docs của dự án làm submodule để đọc offline, versioned:
+Add repo docs của dự án làm submodule, trỏ MCP vào đó, rồi cho skill planning kéo context:
 
 ```bash
 git submodule add <repo-docs-url> docs/kit
 ```
+
+`.mcp.json` ở root repo FE/BE trỏ `DOC_KIT_ROOT=${workspaceFolder}/docs/kit`. Skill planning
+gọi `find_feature(ticket)` → `get_feature(id)` để lập plan theo AC + api-spec + design-spec.
+Chi tiết + block dán vào skill planning: xem [`integrations/consumer/`](integrations/consumer/README.md).
+
+Lệnh hỗ trợ planning:
+- `doc-kit find --ticket ENG-123` — map ticket/branch → feature id.
+- `doc-kit context <id>` — in trọn gói context để nhúng vào plan.
 
 ## Phát triển tool này
 

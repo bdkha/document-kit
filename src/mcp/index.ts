@@ -7,7 +7,8 @@ import { loadDocKitEnv } from "../lib/env.js";
 loadDocKitEnv();
 import {
   listFeatures,
-  getFeatureBundle,
+  findFeatures,
+  renderFeatureBundle,
   readDoc,
   readFeatureMeta,
 } from "../lib/features.js";
@@ -53,22 +54,30 @@ server.tool(
   { id: z.string().describe("feature id, vd F-001-user-onboarding") },
   async ({ id }) => {
     try {
-      const b = getFeatureBundle(id);
-      const parts: string[] = [];
-      parts.push(`# Feature ${b.meta.id} — ${b.meta.title}`);
-      parts.push("```yaml\n" + JSON.stringify(b.meta, null, 2) + "\n```");
-      if (b.meta.api?.needs_fe_repull) {
-        parts.push("> ⚠️ API vừa đổi (needs_fe_repull=true). Đọc kỹ api-spec + changelog trước khi làm.");
-      }
-      parts.push("\n---\n## BUSINESS SPEC\n", b.business ?? "_(chưa có)_");
-      parts.push("\n---\n## API SPEC\n", b.apiSpec ?? "_(BE chưa đẩy OpenAPI)_");
-      parts.push("\n---\n## DESIGN SPEC\n", b.design ?? "_(chưa có)_");
-      parts.push("\n---\n## FE TASKS\n", b.feTasks ?? "_(chưa có)_");
-      parts.push("\n---\n## CHANGELOG\n", b.changelog ?? "_(trống)_");
-      return text(parts.join("\n"));
+      return text(renderFeatureBundle(id));
     } catch (e) {
       return fail((e as Error).message);
     }
+  },
+);
+
+server.tool(
+  "find_feature",
+  "Tìm feature theo ticket id (Linear/Jira…), từ khoá (title/summary), hoặc status. Dùng khi planning để map ticket/branch → feature id rồi gọi get_feature.",
+  {
+    ticket: z.string().optional().describe("ticket id, vd ENG-123"),
+    query: z.string().optional().describe("từ khoá trong title/summary"),
+    status: z.enum(["draft", "in-design", "in-dev", "ready", "done"]).optional(),
+  },
+  async ({ ticket, query, status }) => {
+    const items = findFeatures({ ticket, query, status }).map((m) => ({
+      id: m.id,
+      title: m.title,
+      status: m.status,
+      apiVersion: m.api?.version ?? 0,
+      tickets: m.tickets ?? [],
+    }));
+    return text(items.length ? JSON.stringify(items, null, 2) : "Không tìm thấy feature khớp.");
   },
 );
 

@@ -73,6 +73,38 @@ export function readDocParsed(absPath: string): { data: Record<string, unknown>;
   return { data: parsed.data, body: parsed.content };
 }
 
+/** Tìm feature theo ticket id / status / từ khoá (title+summary). */
+export function findFeatures(opts: { ticket?: string; status?: string; query?: string }): FeatureMeta[] {
+  const q = opts.query?.toLowerCase();
+  return listFeatures(opts.status).filter((m) => {
+    if (opts.ticket && !(m.tickets ?? []).some((t) => t.id?.toLowerCase() === opts.ticket!.toLowerCase())) {
+      return false;
+    }
+    if (q) {
+      const hay = `${m.id} ${m.title} ${m.summary ?? ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/** Render trọn gói context một feature thành markdown (dùng cho MCP get_feature + CLI context). */
+export function renderFeatureBundle(id: string): string {
+  const b = getFeatureBundle(id);
+  const parts: string[] = [];
+  parts.push(`# Feature ${b.meta.id} — ${b.meta.title}`);
+  parts.push("```yaml\n" + JSON.stringify(b.meta, null, 2) + "\n```");
+  if (b.meta.api?.needs_fe_repull) {
+    parts.push("> ⚠️ API vừa đổi (needs_fe_repull=true). Đọc kỹ api-spec + changelog trước khi làm.");
+  }
+  parts.push("\n---\n## BUSINESS SPEC\n", b.business ?? "_(chưa có)_");
+  parts.push("\n---\n## API SPEC\n", b.apiSpec ?? "_(BE chưa đẩy OpenAPI)_");
+  parts.push("\n---\n## DESIGN SPEC\n", b.design ?? "_(chưa có)_");
+  parts.push("\n---\n## FE TASKS\n", b.feTasks ?? "_(chưa có)_");
+  parts.push("\n---\n## CHANGELOG\n", b.changelog ?? "_(trống)_");
+  return parts.join("\n");
+}
+
 /** Trọn gói context một feature (dùng cho MCP get_feature). */
 export function getFeatureBundle(id: string): {
   meta: FeatureMeta;
