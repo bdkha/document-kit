@@ -14,6 +14,8 @@ import {
 import { featureFiles, sharedDir } from "../lib/paths.js";
 import { pushApi } from "../lib/push-api.js";
 import { pendingChanges, ackPull } from "../lib/consumer.js";
+import { addRaw } from "../lib/add-raw.js";
+import { addFigmaLinks } from "../lib/figma.js";
 import path from "node:path";
 import fs from "node:fs";
 
@@ -178,6 +180,43 @@ server.tool(
         `✅ Đã đẩy API cho ${res.featureId}: v${res.apiVersion}, ${res.endpoints} endpoint.\n` +
           `Sinh api-spec.md, set needs_fe_repull=true.`,
       );
+    } catch (e) {
+      return fail((e as Error).message);
+    }
+  },
+);
+
+server.tool(
+  "add_figma_link",
+  "(BA) Thêm 1 Figma link vào feature.yaml.figma[] (dedupe, tự parse node-id từ URL). Link full-flow hoặc frame theo từng usecase/AC.",
+  {
+    id: z.string(),
+    url: z.string().describe("URL Figma (có thể kèm ?node-id=...)"),
+    name: z.string().optional().describe("tên gợi nhớ (vd 'Onboarding flow' hoặc 'AC-3 empty state')"),
+    nodeId: z.string().optional(),
+  },
+  async ({ id, url, name, nodeId }) => {
+    try {
+      const { added, total } = addFigmaLinks(id, [{ url, name, nodeId }]);
+      return text(`${added ? "✅ Đã thêm" : "Đã có (bỏ qua)"} Figma link. Tổng: ${total}.`);
+    } catch (e) {
+      return fail((e as Error).message);
+    }
+  },
+);
+
+server.tool(
+  "add_raw_url",
+  "(BA) Nạp 1 URL vào 00-raw/ của feature. Notion → fetch nội dung (cần NOTION_API_KEY) + trích Figma link; Figma → thêm vào figma[]; URL khác → lưu pointer. Để fetch Notion bằng Notion MCP của bạn rồi dùng submit_raw nếu server không có token.",
+  {
+    id: z.string(),
+    url: z.string(),
+    withFigma: z.boolean().optional().describe("tự thêm Figma link tìm thấy trong nội dung (mặc định true)"),
+  },
+  async ({ id, url, withFigma }) => {
+    try {
+      const results = await addRaw(id, [url], { withFigma });
+      return text(JSON.stringify(results, null, 2));
     } catch (e) {
       return fail((e as Error).message);
     }

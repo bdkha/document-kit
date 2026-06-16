@@ -17,11 +17,17 @@ User muốn biên dịch một feature (đã có thư mục `features/<id>/` và
    - Đọc `features/<id>/feature.yaml` để biết title, figma links, platforms.
 
 2. **Thu thập nguồn**
-   - Đọc mọi file trong `features/<id>/00-raw/`.
-   - Với mỗi Figma link trong `feature.yaml` → dùng **Figma MCP**:
+   - Đọc mọi file trong `features/<id>/00-raw/` (gồm cả file `notion-*.md` do `add-raw` fetch về).
+   - **Map Figma frame ↔ usecase/AC**: trong docs thô (đặc biệt từ Notion) có thể có:
+     - 1 link Figma **full-flow** cho cả feature, và/hoặc
+     - nhiều link **frame riêng** đặt cạnh từng usecase / Acceptance Criteria.
+     Giữ nguyên ngữ cảnh đó: frame nào nằm cạnh AC/usecase nào thì gắn vào đúng AC/usecase đó
+     khi sinh spec (đừng gộp chung làm mất mapping).
+   - Với mỗi Figma link (trong `feature.yaml.figma[]` và các link tìm thấy trong raw) → dùng **Figma MCP**:
      - `get_design_context` / `get_metadata` để lấy cấu trúc + component.
      - `get_variable_defs` để lấy design tokens.
      - `get_screenshot` để export ảnh (lưu vào `features/<id>/02-design-assets/` nếu cần).
+     - Ưu tiên fetch theo `node-id` của frame để phân tích đúng màn hình của usecase đó.
 
 3. **Sinh `01-business-spec.md`** theo `templates/01-business-spec.md`:
    - Giữ nguyên các heading. Điền Goal, Actors, User Stories, Flows, Business Rules (BR-n), Acceptance Criteria (AC-n, Given/When/Then), Edge cases.

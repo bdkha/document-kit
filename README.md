@@ -28,6 +28,10 @@ cp .env.example .env            # điền LINEAR_API_KEY, DOC_KIT_CONSUMER…
 # Tạo feature
 npx -p @bdkha/document-kit doc-kit new "User Onboarding"
 
+# BA nạp docs thô: file local, link Notion (fetch nội dung + trích Figma), link Figma
+npx -p @bdkha/document-kit doc-kit add-raw F-001-user-onboarding ./brief.pdf "https://notion.so/..."
+npx -p @bdkha/document-kit doc-kit add-figma F-001-user-onboarding "https://figma.com/design/...node-id=1-23" --name "Onboarding flow"
+
 # BE đẩy OpenAPI vào 1 feature (AI chọn paths/tags, kit cắt deterministic)
 npx -p @bdkha/document-kit doc-kit push-api F-001-user-onboarding ./openapi.json --tags onboarding
 

@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { loadDocKitEnv } from "../lib/env.js";
 import { createFeature, initWorkspace } from "../lib/scaffold.js";
+import { addRaw } from "../lib/add-raw.js";
+import { addFigmaLinks } from "../lib/figma.js";
 import { listFeatures } from "../lib/features.js";
 import { pushApi } from "../lib/push-api.js";
 import { validateAll } from "../lib/validate.js";
@@ -15,6 +17,10 @@ Dùng:
   doc-kit init [thư-mục]                       Khởi tạo workspace docs cho 1 dự án
   doc-kit mcp                                  Chạy MCP server (stdio, local-first)
   doc-kit new "<Tên feature>"                 Tạo feature mới từ template
+  doc-kit add-raw <feature-id> <path|url...>  Nạp docs thô vào 00-raw/ (file, link Notion,
+                                              link Figma). Notion: fetch nội dung + trích Figma.
+                                              [--no-figma] không tự thêm Figma link tìm thấy.
+  doc-kit add-figma <feature-id> <url>        Thêm Figma link vào feature.yaml [--name "..."] [--node 1:23]
   doc-kit list [status]                       Liệt kê feature (lọc theo status nếu có)
   doc-kit push-api <feature-id> <openapi> [--ci] [--note "..."]
                    [--paths "/a/**,/b"] [--tags "t1,t2"]
@@ -57,6 +63,36 @@ async function main(): Promise<void> {
       console.log(`✅ Đã khởi tạo workspace docs: ${dir}`);
       console.log(`   ${files.join(", ")}`);
       console.log(`   Bước tiếp: cp .env.example .env  →  doc-kit new "Feature đầu tiên"`);
+      break;
+    }
+
+    case "add-raw": {
+      const id = rest[0];
+      const sources = rest.slice(1).filter((r) => !r.startsWith("--"));
+      if (!id || sources.length === 0) {
+        throw new Error('Dùng: doc-kit add-raw <feature-id> <path|url...> [--no-figma]');
+      }
+      const results = await addRaw(id, sources, { withFigma: !has("--no-figma") });
+      if (ci) {
+        console.log(JSON.stringify(results, null, 2));
+        break;
+      }
+      for (const r of results) {
+        const figma = r.figmaAdded ? `  (+${r.figmaAdded} Figma link)` : "";
+        const where = r.saved ? `→ 00-raw/${r.saved}` : r.kind === "figma" ? "→ feature.yaml.figma[]" : "";
+        console.log(`✅ [${r.kind}] ${r.source} ${where}${figma}${r.note ? `  ⚠️ ${r.note}` : ""}`);
+      }
+      console.log(`   Bước tiếp: dùng skill compile-feature để biên dịch.`);
+      break;
+    }
+
+    case "add-figma": {
+      const id = rest[0];
+      const url = rest[1];
+      if (!id || !url) throw new Error('Dùng: doc-kit add-figma <feature-id> <url> [--name "..."] [--node 1:23]');
+      const { added, total } = addFigmaLinks(id, [{ url, name: arg("--name"), nodeId: arg("--node") }]);
+      if (ci) console.log(JSON.stringify({ ok: true, added, total }, null, 2));
+      else console.log(`✅ ${added ? "Đã thêm" : "Đã có (bỏ qua)"} Figma link. Tổng: ${total}.`);
       break;
     }
 
