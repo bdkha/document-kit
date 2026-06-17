@@ -4,6 +4,20 @@ import yaml from "js-yaml";
 import matter from "gray-matter";
 import { featuresDir, featureFiles } from "./paths.js";
 
+export type Role = "fe" | "be";
+export type ChangeType = "feature" | "bugfix" | "improvement" | "chore" | "api";
+
+/** Một thay đổi có cấu trúc (máy đọc). CHANGELOG.md là bản người-đọc tương ứng. */
+export interface ChangeEntry {
+  rev: number; // = feature.version tại thời điểm thay đổi
+  date: string;
+  type: ChangeType;
+  note: string;
+  tickets?: string[];
+  impact: Role[]; // vai cần hành động
+  docs?: string[]; // mục spec bị đụng, vd 01-business-spec.md#br-3
+}
+
 export interface FeatureMeta {
   id: string;
   title: string;
@@ -13,7 +27,8 @@ export interface FeatureMeta {
   owners?: { ba?: string; fe?: string; be?: string };
   tickets?: { system: string; id: string; url?: string; type?: "feature" | "bugfix" | "improvement" | "chore" }[];
   figma?: { name?: string; url: string; nodeId?: string }[];
-  api?: { version?: number; source?: string; needs_fe_repull?: boolean };
+  api?: { version?: number; source?: string };
+  changes?: ChangeEntry[];
   platforms?: string[];
   updated_at: string;
 }
@@ -94,8 +109,12 @@ export function renderFeatureBundle(id: string): string {
   const parts: string[] = [];
   parts.push(`# Feature ${b.meta.id} — ${b.meta.title}`);
   parts.push("```yaml\n" + JSON.stringify(b.meta, null, 2) + "\n```");
-  if (b.meta.api?.needs_fe_repull) {
-    parts.push("> ⚠️ API vừa đổi (needs_fe_repull=true). Đọc kỹ api-spec + changelog trước khi làm.");
+  const last = (b.meta.changes ?? [])[b.meta.changes!.length - 1];
+  if (last) {
+    parts.push(
+      `> ⚠️ Thay đổi mới nhất: rev ${last.rev} [${last.type}] — ${last.note} ` +
+        `(impact: ${(last.impact ?? []).join("+") || "—"}). Đọc kỹ changelog + spec liên quan.`,
+    );
   }
   parts.push("\n---\n## BUSINESS SPEC\n", b.business ?? "_(chưa có)_");
   parts.push("\n---\n## API SPEC\n", b.apiSpec ?? "_(BE chưa đẩy OpenAPI)_");

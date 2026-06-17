@@ -1,7 +1,7 @@
 id: F-001-user-onboarding
 title: User Onboarding
 status: in-dev
-version: 1
+version: 2
 summary: Một câu mô tả ngắn gọn feature làm gì.
 owners:
   ba: ''
@@ -11,6 +11,7 @@ tickets:
   - system: linear
     id: ENG-000
     url: ''
+    type: feature
 figma:
   - name: ''
     url: ''
@@ -18,7 +19,13 @@ figma:
 api:
   version: 1
   source: nestjs-swagger
-  needs_fe_repull: true
+changes:
+  - rev: 2
+    date: '2026-06-14'
+    type: api
+    note: 'BE đẩy OpenAPI: 2 endpoint.'
+    tickets: [ENG-000]
+    impact: [fe]
 platforms:
   - web
   - react-native

@@ -32,8 +32,9 @@ Bạn (AI agent ở BE) vừa build/đổi endpoint và đang có **context API 
    - `note` nên mô tả thay đổi (thêm endpoint / đổi response / breaking…).
 
 5. **Kiểm & báo**
-   - Kit trả về số endpoint đã gắn + `api.version` mới. Đối chiếu với những gì bạn vừa build.
-   - Nhắc: đã set `needs_fe_repull=true` → FE nên `get_feature` lại.
+   - Kit trả về số endpoint đã gắn + `api.version` mới (và bump `feature.version` + ghi `changes[]`).
+   - Mặc định `impact=[fe]`; nếu thay đổi API buộc **BE khác** cũng sửa thì truyền `impact=[fe,be]`.
+   - Role bị impact sẽ thấy qua `pending_changes(role)` / `plan_for_ticket`.
    - Nếu là **breaking change**, ghi rõ trong `note` để CHANGELOG cảnh báo FE.
 
 ## Nguyên tắc

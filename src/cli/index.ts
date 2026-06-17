@@ -8,10 +8,21 @@ import { addFigmaLinks } from "../lib/figma.js";
 import { installSkills } from "../lib/install-skills.js";
 import { listFeatures, findFeatures, renderFeatureBundle } from "../lib/features.js";
 import { pushApi } from "../lib/push-api.js";
-import { logChange, type ChangeType } from "../lib/log-change.js";
+import { logChange, type MaintenanceType } from "../lib/log-change.js";
+import { planForTicket, renderTicketPlan } from "../lib/plan.js";
+import type { Role } from "../lib/features.js";
 import { validateAll } from "../lib/validate.js";
 import { pendingChanges, ackPull } from "../lib/consumer.js";
 import { notifyFeature } from "../lib/notify.js";
+
+/** Parse danh sách phân tách bằng dấu phẩy → mảng (bỏ rỗng). */
+function splitList(v?: string): string[] | undefined {
+  return v ? v.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
+}
+function parseRoles(v?: string): Role[] | undefined {
+  const list = splitList(v)?.map((s) => s.toLowerCase()).filter((s): s is Role => s === "fe" || s === "be");
+  return list && list.length ? list : undefined;
+}
 
 const HELP = `doc-kit — CLI cho Document Kit
 
@@ -30,16 +41,19 @@ Dùng:
   doc-kit find [--ticket X] [--query Y] [--status S]
                                               Tìm feature theo ticket/từ khoá/status
   doc-kit push-api <feature-id> <openapi> [--ci] [--note "..."]
-                   [--paths "/a/**,/b"] [--tags "t1,t2"]
+                   [--paths "/a/**,/b"] [--tags "t1,t2"] [--impact fe,be] [--ticket X]
                                               Đẩy OpenAPI lên 1 feature, sinh api-spec.md.
                                               --paths/--tags: cắt spec lớn về đúng feature.
+                                              --impact: vai cần pull lại (mặc định fe).
   doc-kit log-change <feature-id> --type bugfix|improvement|chore --note "..."
-                     [--ticket ENG-123] [--repull]
+                     [--ticket ENG-123] [--impact fe,be] [--docs "01-business-spec.md#br-3"]
                                               Ghi 1 thay đổi bảo trì (bug fix/cải tiến) lên feature
-                                              đã có: bump version + CHANGELOG, gắn ticket, giữ status.
-                                              --repull: đổi hành vi user-facing → FE cần pull lại.
-  doc-kit pending [--state f] [--ci]          (FE) Feature có API mới hơn version đã pull
-  doc-kit ack <feature-id> [--state f]        (FE) Xác nhận đã pull tới API version hiện tại
+                                              đã có: bump version + change[], gắn ticket, giữ status.
+                                              --impact: vai cần hành động (mặc định fe,be).
+  doc-kit plan --ticket <id> [--role fe|be]   Tra theo ticket → gói plan đã scope (delta change +
+                                              spec liên quan) để planner dựng plan.
+  doc-kit pending [--role fe|be] [--state f]  Feature có thay đổi mới (ảnh hưởng role) chưa pull
+  doc-kit ack <feature-id> [--role fe|be]     Xác nhận role này đã pull tới revision hiện tại
   doc-kit notify <feature-id> [--note "..."]  (BE/CI) Báo API đổi vào ticket của feature
                                               (Linear: LINEAR_API_KEY; Redmine self-host: REDMINE_URL + REDMINE_API_KEY)
   doc-kit validate                            Validate toàn bộ kit (schema + cấu trúc)
@@ -145,8 +159,9 @@ async function main(): Promise<void> {
       }
       for (const m of items) {
         const apiV = m.api?.version ?? 0;
-        const repull = m.api?.needs_fe_repull ? "  ⚠️ FE re-pull" : "";
-        console.log(`${m.id}  [${m.status}]  api v${apiV}${repull}  — ${m.title}`);
+        const last = (m.changes ?? [])[(m.changes?.length ?? 0) - 1];
+        const hint = last ? `  ←rev ${last.rev}[${last.type}] impact:${last.impact.join("+")}` : "";
+        console.log(`${m.id}  [${m.status}]  rev ${m.version} · api v${apiV}${hint}  — ${m.title}`);
       }
       break;
     }
@@ -181,12 +196,12 @@ async function main(): Promise<void> {
       if (!id || !file) throw new Error("Dùng: doc-kit push-api <feature-id> <openapi-file>");
       if (!fs.existsSync(file)) throw new Error(`Không tìm thấy file OpenAPI: ${file}`);
       const content = fs.readFileSync(path.resolve(file), "utf8");
-      const splitList = (v?: string) =>
-        v ? v.split(",").map((s) => s.trim()).filter(Boolean) : undefined;
       const res = pushApi(id, content, {
         note: arg("--note"),
         paths: splitList(arg("--paths")),
         tags: splitList(arg("--tags")),
+        impact: parseRoles(arg("--impact")),
+        ticket: arg("--ticket"),
       });
       if (ci) {
         console.log(JSON.stringify({ ok: true, ...res }, null, 2));
@@ -195,14 +210,14 @@ async function main(): Promise<void> {
       console.log(`✅ Đã đẩy API cho ${res.featureId}`);
       console.log(`   api version: v${res.apiVersion}  •  endpoints: ${res.endpoints}`);
       console.log(`   sinh: ${res.apiSpecPath}`);
-      console.log(`   → đã set needs_fe_repull=true. FE nên get_feature lại.`);
+      console.log(`   → FE (và role bị impact) nên pull lại: doc-kit pending --role <fe|be>.`);
       break;
     }
 
     case "log-change": {
       const id = rest[0];
       if (!id) throw new Error('Dùng: doc-kit log-change <feature-id> --type bugfix|improvement|chore --note "..."');
-      const type = arg("--type") as ChangeType | undefined;
+      const type = arg("--type") as MaintenanceType | undefined;
       if (!type || !["bugfix", "improvement", "chore"].includes(type)) {
         throw new Error("--type bắt buộc, phải là một trong: bugfix | improvement | chore");
       }
@@ -213,43 +228,58 @@ async function main(): Promise<void> {
         type,
         note,
         ticket: ticketId ? { id: ticketId } : undefined,
-        repull: has("--repull"),
+        impact: parseRoles(arg("--impact")),
+        docs: splitList(arg("--docs")),
       });
       if (ci) {
         console.log(JSON.stringify({ ok: true, ...res }, null, 2));
         break;
       }
       console.log(`✅ Đã ghi nhận thay đổi [${res.type}] cho ${res.featureId}`);
-      console.log(`   version: v${res.version}  •  CHANGELOG: ${res.changelogPath}`);
-      if (has("--repull")) console.log(`   → đã set needs_fe_repull=true. FE nên get_feature lại.`);
+      console.log(`   rev v${res.version}  •  impact: ${res.impact.join(", ")}  •  CHANGELOG: ${res.changelogPath}`);
+      console.log(`   → role bị impact pull lại: doc-kit pending --role <fe|be>.`);
+      break;
+    }
+
+    case "plan": {
+      const ticket = arg("--ticket");
+      if (!ticket) throw new Error("Dùng: doc-kit plan --ticket <id> [--role fe|be]");
+      const plans = planForTicket(ticket, arg("--role"));
+      if (ci) {
+        console.log(JSON.stringify(plans, null, 2));
+        break;
+      }
+      console.log(renderTicketPlan(plans));
       break;
     }
 
     case "pending": {
-      const items = pendingChanges(arg("--state"));
+      const items = pendingChanges(arg("--role"), arg("--state"));
       if (ci) {
         console.log(JSON.stringify(items, null, 2));
         break;
       }
       if (items.length === 0) {
-        console.log("✅ Không có API mới cần pull.");
+        console.log("✅ Không có thay đổi mới cần pull cho role này.");
         break;
       }
-      console.log(`Có ${items.length} feature API mới hơn bản bạn đã pull:\n`);
+      console.log(`Có ${items.length} feature có thay đổi mới (role ${items[0].role}):\n`);
       for (const it of items) {
-        console.log(`● ${it.id} — ${it.title}  (đã pull v${it.ackedVersion} → hiện v${it.currentVersion})`);
-        if (it.changelog) console.log(it.changelog.split("\n").map((l) => "    " + l).join("\n"));
-        console.log(`    → get_feature rồi: doc-kit ack ${it.id}\n`);
+        console.log(`● ${it.id} — ${it.title}  (đã pull rev ${it.ackedRev} → hiện rev ${it.currentRev})`);
+        for (const c of it.changes) {
+          console.log(`    - rev ${c.rev} [${c.type}] ${c.note}${c.docs?.length ? `  (docs: ${c.docs.join(", ")})` : ""}`);
+        }
+        console.log(`    → plan: doc-kit plan --ticket <id> --role ${it.role} ; xong: doc-kit ack ${it.id} --role ${it.role}\n`);
       }
       break;
     }
 
     case "ack": {
       const id = rest[0];
-      if (!id) throw new Error("Dùng: doc-kit ack <feature-id>");
-      const res = ackPull(id, arg("--state"));
+      if (!id) throw new Error("Dùng: doc-kit ack <feature-id> [--role fe|be]");
+      const res = ackPull(id, arg("--role"), arg("--state"));
       if (ci) console.log(JSON.stringify({ ok: true, ...res }, null, 2));
-      else console.log(`✅ Đã ack ${res.id} ở api v${res.version}.`);
+      else console.log(`✅ Đã ack ${res.id} (role ${res.role}) tới rev ${res.rev}.`);
       break;
     }
 

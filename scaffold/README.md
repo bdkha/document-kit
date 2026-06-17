@@ -23,12 +23,15 @@ npx -p @bdkha/document-kit doc-kit new "Tên feature"
 # BE đẩy API vào 1 feature
 npx -p @bdkha/document-kit doc-kit push-api F-001-... openapi.json --tags ...
 
-# Bảo trì: ghi bug fix / cải tiến lên feature đã có (giữ status, bump version)
-npx -p @bdkha/document-kit doc-kit log-change F-001-... --type bugfix --note "..." --ticket ENG-9
+# Bảo trì: ghi bug fix / cải tiến lên feature đã có (giữ status, bump version, impact fe/be)
+npx -p @bdkha/document-kit doc-kit log-change F-001-... --type bugfix --note "..." --ticket ENG-9 --impact fe,be
 
-# FE xem API mới / xác nhận đã pull
-npx -p @bdkha/document-kit doc-kit pending
-npx -p @bdkha/document-kit doc-kit ack F-001-...
+# Lập plan theo ticket (feature mới hoặc bảo trì) — scope theo delta
+npx -p @bdkha/document-kit doc-kit plan --ticket ENG-9 --role fe
+
+# FE/BE xem thay đổi mới / xác nhận đã pull (theo vai)
+npx -p @bdkha/document-kit doc-kit pending --role fe
+npx -p @bdkha/document-kit doc-kit ack F-001-... --role fe
 
 # Validate
 npx -p @bdkha/document-kit doc-kit validate

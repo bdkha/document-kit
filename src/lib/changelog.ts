@@ -1,8 +1,14 @@
 import fs from "node:fs";
+import type { ChangeEntry, FeatureMeta } from "./features.js";
 
 /** Ngày hôm nay dạng YYYY-MM-DD. */
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** Thêm một entry có cấu trúc vào meta.changes[] (nguồn máy đọc cho pending/plan). */
+export function appendChange(meta: FeatureMeta, entry: ChangeEntry): void {
+  meta.changes = [...(meta.changes ?? []), entry];
 }
 
 /**
