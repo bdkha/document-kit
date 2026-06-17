@@ -1,4 +1,5 @@
 import { readFeatureMeta } from "./features.js";
+import { buildNotifyBody, type NotifyResult } from "./notify-common.js";
 
 /**
  * PUSH tuỳ chọn: comment vào ticket Linear đã map trong feature.yaml khi API đổi.
@@ -47,35 +48,22 @@ async function createComment(issueId: string, body: string, apiKey: string): Pro
   return data.commentCreate.success;
 }
 
-export interface NotifyResult {
-  status: "sent" | "skipped";
-  reason?: string;
-  ticket?: string;
-}
-
 /** Comment "API đã cập nhật" vào ticket Linear của 1 feature. */
 export async function notifyLinear(id: string, opts: { note?: string } = {}): Promise<NotifyResult> {
   const apiKey = process.env.LINEAR_API_KEY;
-  if (!apiKey) return { status: "skipped", reason: "thiếu LINEAR_API_KEY" };
+  if (!apiKey) return { status: "skipped", system: "linear", reason: "thiếu LINEAR_API_KEY" };
 
   const meta = readFeatureMeta(id);
   const ticket = meta.tickets?.find((t) => t.system === "linear" && t.id);
-  if (!ticket) return { status: "skipped", reason: "feature không có ticket Linear" };
+  if (!ticket) return { status: "skipped", system: "linear", reason: "feature không có ticket Linear" };
 
   const issueId = await resolveIssueId(ticket.id, apiKey);
-  if (!issueId) return { status: "skipped", reason: `không tìm thấy issue Linear ${ticket.id}` };
+  if (!issueId) {
+    return { status: "skipped", system: "linear", reason: `không tìm thấy issue Linear ${ticket.id}` };
+  }
 
-  const apiV = meta.api?.version ?? 0;
-  const body = [
-    `🔄 **API docs cập nhật** cho feature \`${meta.id}\` — **${meta.title}**`,
-    ``,
-    `- API version: **v${apiV}**`,
-    opts.note ? `- Thay đổi: ${opts.note}` : null,
-    `- FE nên \`get_feature(${meta.id})\` lại rồi \`doc-kit ack ${meta.id}\`.`,
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  const ok = await createComment(issueId, body, apiKey);
-  return ok ? { status: "sent", ticket: ticket.id } : { status: "skipped", reason: "commentCreate thất bại" };
+  const ok = await createComment(issueId, buildNotifyBody(meta, opts.note), apiKey);
+  return ok
+    ? { status: "sent", system: "linear", ticket: ticket.id }
+    : { status: "skipped", system: "linear", reason: "commentCreate thất bại" };
 }

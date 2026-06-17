@@ -11,8 +11,8 @@ owners:
 
 # Ticket pluggable — bỏ trống nếu chưa gắn
 tickets:
-  - system: linear              # linear | jira | github | none
-    id: ENG-000
+  - system: linear              # linear | jira | github | redmine | none
+    id: ENG-000                 # redmine: id số, vd 1234 hoặc #1234
     url: ""
 
 # Link Figma (dùng cho skill compile-feature qua Figma MCP)

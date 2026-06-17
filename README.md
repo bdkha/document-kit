@@ -69,7 +69,7 @@ Một feature đi qua 3 vai trò theo vòng: **BA → BE → FE** (và lặp l�
 | 2 | Code | Hiện thực endpoint (NestJS…) |
 | 3 | Export OpenAPI | `scripts/export-openapi.ts` (xem `integrations/nestjs/`) → `openapi.json` |
 | 4 | Gắn API vào feature | **`/attach-api`**: chọn `--tags`/`--paths` thuộc feature → `push_api_doc` → kit sinh `api-spec.md`, bump `api.version`, set `needs_fe_repull`, `status: in-dev` |
-| 5 | Báo FE | `doc-kit notify <id>` (comment Linear) — hoặc để CI tự làm |
+| 5 | Báo FE | `doc-kit notify <id>` (báo vào ticket Linear/Redmine của feature) — hoặc để CI tự làm |
 
 → Đầu ra: `03-api/openapi.yaml` (nguồn) + `api-spec.md` (AI-friendly) gắn đúng feature.
 
@@ -88,10 +88,22 @@ Một feature đi qua 3 vai trò theo vòng: **BA → BE → FE** (và lặp l�
 
 ## Cấu hình (per-project)
 
-| Loại | Ở đâu | Ví dụ |
+| Loại | Ỡ đâu | Ví dụ |
 |---|---|---|
-| Secret / per-machine / per-consumer | `.env` (gitignore) | `LINEAR_API_KEY`, `DOC_KIT_ROOT`, `DOC_KIT_STATE`, `DOC_KIT_CONSUMER` |
+| Secret / per-machine / per-consumer | `.env` (gitignore) | `LINEAR_API_KEY`, `REDMINE_URL` + `REDMINE_API_KEY`, `DOC_KIT_ROOT`, `DOC_KIT_STATE`, `DOC_KIT_CONSUMER` |
 | Structural, commit được | `.doc-kit/config.yaml` | ticket url template, status flow, id prefix |
+
+### Ticket systems
+
+`tickets[].system` hỗ trợ `linear | jira | github | redmine | none`. Lệnh `doc-kit notify`
+báo "API đã đổi" vào **mọi** ticket mà feature gắn:
+
+- **Linear** — cần `LINEAR_API_KEY` (comment qua GraphQL API).
+- **Redmine** (thường **self-host**) — cần `REDMINE_URL` (gốc instance, vd
+  `https://redmine.cong-ty.vn`) + `REDMINE_API_KEY` (My account → API access key).
+  Notify thêm note vào issue qua REST `PUT /issues/{id}.json`. Id là số (`1234` hoặc `#1234`).
+
+Thiếu env hay feature không gắn ticket tương ứng → skip (không lỗi), CI vẫn xanh.
 
 Thứ tự ưu tiên: **CLI flag > `.env` > `.doc-kit/config.yaml` > default**. Tool dò content root
 qua `DOC_KIT_ROOT`, hoặc dò ngược từ cwd tìm `.doc-kit/config.yaml`.

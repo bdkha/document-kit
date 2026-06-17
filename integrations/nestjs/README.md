@@ -55,7 +55,8 @@ set `needs_fe_repull=true`, ghi CHANGELOG.
 ## 4. Tự động qua CI
 
 Xem `github-workflow.yml` — workflow mẫu phía BE: export → push-api → **mở PR vào repo docs**
-của dự án. Cần secrets `DOCS_REPO`, `DOCS_PUSH_TOKEN`, và `LINEAR_API_KEY` (tuỳ chọn).
+của dự án. Cần secrets `DOCS_REPO`, `DOCS_PUSH_TOKEN`, và để notify: `LINEAR_API_KEY`,
+hoặc `REDMINE_URL` + `REDMINE_API_KEY` cho Redmine self-host (tuỳ chọn).
 
 ## Khuyến nghị mapping
 - Nếu kiểm soát được code BE: gắn `@ApiTags('<feature-id hoặc nhóm>')` để `--tags` gọn.

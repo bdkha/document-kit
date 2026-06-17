@@ -10,7 +10,7 @@ import { listFeatures, findFeatures, renderFeatureBundle } from "../lib/features
 import { pushApi } from "../lib/push-api.js";
 import { validateAll } from "../lib/validate.js";
 import { pendingChanges, ackPull } from "../lib/consumer.js";
-import { notifyLinear } from "../lib/notify-linear.js";
+import { notifyFeature } from "../lib/notify.js";
 
 const HELP = `doc-kit — CLI cho Document Kit
 
@@ -34,7 +34,8 @@ Dùng:
                                               --paths/--tags: cắt spec lớn về đúng feature.
   doc-kit pending [--state f] [--ci]          (FE) Feature có API mới hơn version đã pull
   doc-kit ack <feature-id> [--state f]        (FE) Xác nhận đã pull tới API version hiện tại
-  doc-kit notify <feature-id> [--note "..."]  (BE/CI) Comment Linear báo API đổi (cần LINEAR_API_KEY)
+  doc-kit notify <feature-id> [--note "..."]  (BE/CI) Báo API đổi vào ticket của feature
+                                              (Linear: LINEAR_API_KEY; Redmine self-host: REDMINE_URL + REDMINE_API_KEY)
   doc-kit validate                            Validate toàn bộ kit (schema + cấu trúc)
   doc-kit help                                Hiện trợ giúp
 
@@ -223,10 +224,19 @@ async function main(): Promise<void> {
     case "notify": {
       const id = rest[0];
       if (!id) throw new Error("Dùng: doc-kit notify <feature-id> [--note ...]");
-      const res = await notifyLinear(id, { note: arg("--note") });
-      if (ci) console.log(JSON.stringify(res, null, 2));
-      else if (res.status === "sent") console.log(`✅ Đã comment Linear (${res.ticket}).`);
-      else console.log(`⏭️  Bỏ qua notify: ${res.reason}`);
+      const results = await notifyFeature(id, { note: arg("--note") });
+      if (ci) {
+        console.log(JSON.stringify(results, null, 2));
+        break;
+      }
+      if (results.length === 0) {
+        console.log("⏭️  Bỏ qua notify: feature không có ticket hỗ trợ (linear/redmine).");
+        break;
+      }
+      for (const res of results) {
+        if (res.status === "sent") console.log(`✅ Đã báo ${res.system} (${res.ticket}).`);
+        else console.log(`⏭️  Bỏ qua ${res.system}: ${res.reason}`);
+      }
       break;
     }
 

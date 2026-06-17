@@ -29,7 +29,7 @@ function fail(msg: string) {
   return { isError: true, content: [{ type: "text" as const, text: `Lỗi: ${msg}` }] };
 }
 
-// ── READ PATH ──────────────────────────────────────────────────────────────
+// ── READ PATH ─────────────────────────────────────────────
 
 server.tool(
   "list_features",
@@ -63,7 +63,7 @@ server.tool(
 
 server.tool(
   "find_feature",
-  "Tìm feature theo ticket id (Linear/Jira…), từ khoá (title/summary), hoặc status. Dùng khi planning để map ticket/branch → feature id rồi gọi get_feature.",
+  "Tìm feature theo ticket id (Linear/Jira/Redmine…), từ khoá (title/summary), hoặc status. Dùng khi planning để map ticket/branch → feature id rồi gọi get_feature.",
   {
     ticket: z.string().optional().describe("ticket id, vd ENG-123"),
     query: z.string().optional().describe("từ khoá trong title/summary"),
@@ -165,7 +165,7 @@ server.tool(
   },
 );
 
-// ── WRITE PATH ─────────────────────────────────────────────────────────────
+// ── WRITE PATH ──────────────────────────────────────────
 
 server.tool(
   "push_api_doc",
