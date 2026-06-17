@@ -8,6 +8,7 @@ import { addFigmaLinks } from "../lib/figma.js";
 import { installSkills } from "../lib/install-skills.js";
 import { listFeatures, findFeatures, renderFeatureBundle } from "../lib/features.js";
 import { pushApi } from "../lib/push-api.js";
+import { logChange, type ChangeType } from "../lib/log-change.js";
 import { validateAll } from "../lib/validate.js";
 import { pendingChanges, ackPull } from "../lib/consumer.js";
 import { notifyFeature } from "../lib/notify.js";
@@ -32,6 +33,11 @@ Dùng:
                    [--paths "/a/**,/b"] [--tags "t1,t2"]
                                               Đẩy OpenAPI lên 1 feature, sinh api-spec.md.
                                               --paths/--tags: cắt spec lớn về đúng feature.
+  doc-kit log-change <feature-id> --type bugfix|improvement|chore --note "..."
+                     [--ticket ENG-123] [--repull]
+                                              Ghi 1 thay đổi bảo trì (bug fix/cải tiến) lên feature
+                                              đã có: bump version + CHANGELOG, gắn ticket, giữ status.
+                                              --repull: đổi hành vi user-facing → FE cần pull lại.
   doc-kit pending [--state f] [--ci]          (FE) Feature có API mới hơn version đã pull
   doc-kit ack <feature-id> [--state f]        (FE) Xác nhận đã pull tới API version hiện tại
   doc-kit notify <feature-id> [--note "..."]  (BE/CI) Báo API đổi vào ticket của feature
@@ -190,6 +196,32 @@ async function main(): Promise<void> {
       console.log(`   api version: v${res.apiVersion}  •  endpoints: ${res.endpoints}`);
       console.log(`   sinh: ${res.apiSpecPath}`);
       console.log(`   → đã set needs_fe_repull=true. FE nên get_feature lại.`);
+      break;
+    }
+
+    case "log-change": {
+      const id = rest[0];
+      if (!id) throw new Error('Dùng: doc-kit log-change <feature-id> --type bugfix|improvement|chore --note "..."');
+      const type = arg("--type") as ChangeType | undefined;
+      if (!type || !["bugfix", "improvement", "chore"].includes(type)) {
+        throw new Error("--type bắt buộc, phải là một trong: bugfix | improvement | chore");
+      }
+      const note = arg("--note");
+      if (!note) throw new Error('--note bắt buộc (mô tả thay đổi). Vd: --note "Sửa validate email"');
+      const ticketId = arg("--ticket");
+      const res = logChange(id, {
+        type,
+        note,
+        ticket: ticketId ? { id: ticketId } : undefined,
+        repull: has("--repull"),
+      });
+      if (ci) {
+        console.log(JSON.stringify({ ok: true, ...res }, null, 2));
+        break;
+      }
+      console.log(`✅ Đã ghi nhận thay đổi [${res.type}] cho ${res.featureId}`);
+      console.log(`   version: v${res.version}  •  CHANGELOG: ${res.changelogPath}`);
+      if (has("--repull")) console.log(`   → đã set needs_fe_repull=true. FE nên get_feature lại.`);
       break;
     }
 

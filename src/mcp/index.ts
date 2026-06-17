@@ -14,6 +14,7 @@ import {
 } from "../lib/features.js";
 import { featureFiles, sharedDir } from "../lib/paths.js";
 import { pushApi } from "../lib/push-api.js";
+import { logChange } from "../lib/log-change.js";
 import { pendingChanges, ackPull } from "../lib/consumer.js";
 import { addRaw } from "../lib/add-raw.js";
 import { addFigmaLinks } from "../lib/figma.js";
@@ -188,6 +189,32 @@ server.tool(
       return text(
         `✅ Đã đẩy API cho ${res.featureId}: v${res.apiVersion}, ${res.endpoints} endpoint.\n` +
           `Sinh api-spec.md, set needs_fe_repull=true.`,
+      );
+    } catch (e) {
+      return fail((e as Error).message);
+    }
+  },
+);
+
+server.tool(
+  "log_change",
+  "Ghi nhận 1 thay đổi BẢO TRÌ (bug fix / cải tiến / chore) lên feature ĐÃ TỒN TẠI — không phải feature mới. " +
+    "Dùng sau khi đã sửa nghiệp vụ/design trực tiếp trong 01/02 (giữ template). Bump feature.version, ghi CHANGELOG có phân loại, " +
+    "gắn ticket vào tickets[] (find_feature tìm được), GIỮ NGUYÊN status. repull=true khi đổi hành vi user-facing (set FE re-pull). " +
+    "Nếu thay đổi đụng API → dùng push_api_doc thay vì tool này.",
+  {
+    id: z.string().describe("feature id"),
+    type: z.enum(["bugfix", "improvement", "chore"]).describe("loại thay đổi bảo trì"),
+    note: z.string().describe("mô tả ngắn thay đổi (vào CHANGELOG)"),
+    ticket: z.string().optional().describe("ticket id bảo trì, vd ENG-123"),
+    repull: z.boolean().optional().describe("true nếu đổi hành vi user-facing → FE cần pull lại"),
+  },
+  async ({ id, type, note, ticket, repull }) => {
+    try {
+      const res = logChange(id, { type, note, ticket: ticket ? { id: ticket } : undefined, repull });
+      return text(
+        `✅ Đã ghi nhận [${res.type}] cho ${res.featureId}: version v${res.version}.\n` +
+          `Ghi CHANGELOG${repull ? ", set needs_fe_repull=true" : ""}. Status giữ nguyên.`,
       );
     } catch (e) {
       return fail((e as Error).message);

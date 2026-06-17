@@ -84,6 +84,19 @@ Một feature đi qua 3 vai trò theo vòng: **BA → BE → FE** (và lặp l�
 
 → Mỗi task tự đủ ngữ cảnh: AC nào, endpoint nào, screen nào.
 
+### 🔧 Bảo trì — bug fix / cải tiến trên feature đã có
+
+Agile: feature `done` rồi vẫn có task sửa bug / cải tiến nhỏ — **không** tạo feature mới.
+
+| # | Làm gì | Trong Claude Code |
+|---|--------|-------------------|
+| 1 | Map ticket → feature | `find_feature(ticket)` (CLI: `doc-kit find --ticket …`) |
+| 2 | Sửa spec tại chỗ | **`/maintain-feature`**: chỉnh đúng phần đổi trong `01`/`02` (giữ template) |
+| 3 | Ghi nhận | `log_change(id, type, note, ticket?, repull?)` (CLI: `doc-kit log-change`) → bump `version`, ghi CHANGELOG có phân loại, gắn ticket. **Status giữ nguyên** |
+| 4 | Đụng API? | Dùng **`/attach-api`** → `push_api_doc` như cũ (bump `api.version`) |
+
+→ Đầu ra: spec được vá đúng phạm vi + entry CHANGELOG `## v<n> — <date> — <type>`, FE re-pull nếu đổi hành vi.
+
 > Cách nối Bước-0 vào skill planning có sẵn của bạn: xem [`integrations/consumer/`](integrations/consumer/README.md).
 
 ## Cấu hình (per-project)
@@ -132,6 +145,8 @@ Kit kèm 3 skill, tận dụng MCP kết nối sẵn của Claude (không cần 
   Figma MCP phân tích frame, model map frame↔usecase/AC).
 - **`compile-feature`** — biên dịch 00-raw + Figma → business/design spec.
 - **`attach-api`** — BE gắn OpenAPI vào đúng feature.
+- **`maintain-feature`** — bug fix / cải tiến trên feature đã có: sửa spec tại chỗ +
+  `log_change` (bump version + CHANGELOG, giữ status).
 
 Claude Code chỉ tự nạp skills ở **project root**, không nạp trong submodule. Cài để dùng ở bất kỳ repo:
 
@@ -141,7 +156,7 @@ npx -p @bdkha/document-kit doc-kit install-skills          # -> ./.claude/skills
 npx -p @bdkha/document-kit doc-kit install-skills --global # -> ~/.claude/skills (mọi project)
 ```
 
-Rồi trong Claude Code gõ `/ingest-feature`, `/compile-feature`, `/attach-api`.
+Rồi trong Claude Code gõ `/ingest-feature`, `/compile-feature`, `/attach-api`, `/maintain-feature`.
 
 ## Tiêu dùng từ repo FE/BE (đọc docs lúc planning)
 
@@ -156,8 +171,10 @@ gọi `find_feature(ticket)` → `get_feature(id)` để lập plan theo AC + ap
 Chi tiết + block dán vào skill planning: xem [`integrations/consumer/`](integrations/consumer/README.md).
 
 Lệnh hỗ trợ planning:
-- `doc-kit find --ticket ENG-123` — map ticket/branch → feature id.
+- `doc-kit find --ticket ENG-123` — map ticket/branch → feature id (cả ticket bảo trì).
 - `doc-kit context <id>` — in trọn gói context để nhúng vào plan.
+- `doc-kit log-change <id> --type bugfix|improvement|chore --note "…" [--ticket …] [--repull]` —
+  ghi task bảo trì lên feature đã có (bump version + CHANGELOG, giữ status).
 
 ## Phát triển tool này
 
@@ -172,7 +189,7 @@ DOC_KIT_ROOT=examples/sample-docs node dist/cli/index.js list
 - `templates/`, `scaffold/`, `.doc-kit/schema/` — asset shipped trong package.
 - `examples/sample-docs/` — content mẫu để dev/test (không publish).
 - `integrations/nestjs/` — script export OpenAPI + workflow CI mẫu.
-- `.claude/skills/` — skill `compile-feature`, `attach-api`.
+- `.claude/skills/` — skill `compile-feature`, `attach-api`, `maintain-feature`.
 
 ## Publish (CI tự động)
 

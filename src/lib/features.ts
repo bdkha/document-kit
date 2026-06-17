@@ -11,7 +11,7 @@ export interface FeatureMeta {
   version: number;
   summary?: string;
   owners?: { ba?: string; fe?: string; be?: string };
-  tickets?: { system: string; id: string; url?: string }[];
+  tickets?: { system: string; id: string; url?: string; type?: "feature" | "bugfix" | "improvement" | "chore" }[];
   figma?: { name?: string; url: string; nodeId?: string }[];
   api?: { version?: number; source?: string; needs_fe_repull?: boolean };
   platforms?: string[];

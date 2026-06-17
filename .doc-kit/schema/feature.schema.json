@@ -36,7 +36,12 @@
         "properties": {
           "system": { "type": "string", "enum": ["linear", "jira", "github", "redmine", "none"] },
           "id": { "type": "string" },
-          "url": { "type": "string" }
+          "url": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["feature", "bugfix", "improvement", "chore"],
+            "description": "Loại ticket: feature (mới) | bugfix | improvement | chore (bảo trì)"
+          }
         }
       }
     },

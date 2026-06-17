@@ -9,11 +9,13 @@ owners:
   fe: ""
   be: ""
 
-# Ticket pluggable — bỏ trống nếu chưa gắn
+# Ticket pluggable — bỏ trống nếu chưa gắn. Task bảo trì dùng log-change sẽ tự
+# thêm ticket vào đây với type tương ứng.
 tickets:
   - system: linear              # linear | jira | github | redmine | none
     id: ENG-000                 # redmine: id số, vd 1234 hoặc #1234
     url: ""
+    type: feature               # feature | bugfix | improvement | chore
 
 # Link Figma (dùng cho skill compile-feature qua Figma MCP)
 figma:

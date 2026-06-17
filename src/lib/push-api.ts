@@ -4,10 +4,7 @@ import { featureFiles } from "./paths.js";
 import { readFeatureMeta, writeFeatureMeta } from "./features.js";
 import { openapiToMarkdown } from "./openapi-to-md.js";
 import { sliceOpenApi, type Selector } from "./openapi-slice.js";
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { today, prependChangelogEntry } from "./changelog.js";
 
 export interface PushApiResult {
   featureId: string;
@@ -90,17 +87,7 @@ export function pushApi(featureId: string, openapiContent: string, opts: PushApi
     .filter(Boolean)
     .join("\n");
 
-  const existing = fs.existsSync(f.changelog) ? fs.readFileSync(f.changelog, "utf8") : `# Changelog — ${meta.title}\n\n`;
-  const lines = existing.split("\n");
-  // Chèn trước mục "## " đầu tiên (entry mới nhất lên đầu, giữ phần prose ở trên).
-  // Nếu chưa có mục nào thì chèn sau dòng tiêu đề "# ".
-  let insertAt = lines.findIndex((l) => /^## /.test(l));
-  if (insertAt < 0) {
-    const headerIdx = lines.findIndex((l) => l.startsWith("# "));
-    insertAt = headerIdx >= 0 ? headerIdx + 1 : 0;
-  }
-  lines.splice(insertAt, 0, entry, "");
-  fs.writeFileSync(f.changelog, lines.join("\n"), "utf8");
+  prependChangelogEntry(f.changelog, entry, meta.title);
 
   return { featureId, apiVersion, endpoints, apiSpecPath: f.apiSpec };
 }

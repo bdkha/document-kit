@@ -68,3 +68,23 @@ context "API nào thuộc feature nào"); kit cắt deterministic và kéo theo 
 `draft` → `in-design` → `in-dev` → `ready` → `done`
 
 FE chỉ nên bắt đầu task khi `status >= in-dev` và `api.version >= 1`.
+
+## Bảo trì (bug fix / cải tiến)
+
+Dự án chạy Agile: feature `done` rồi vẫn liên tục có task **bug fix / cải tiến** — *không phải*
+feature mới, nên **không** tạo feature mới và **không** chạy lại ingest/compile từ đầu. Vòng lặp:
+
+1. **Map ticket → feature**: `find_feature(ticket | query)`. Không có feature tương ứng (code cũ
+   chưa doc) → đề xuất tạo feature tối thiểu (`doc-kit new`) hoặc gắn vào feature catch-all; hỏi
+   reviewer, đừng bịa.
+2. **Sửa spec tại chỗ**: chỉnh `01-business-spec.md` / `02-design-spec.md` đúng phần đổi (BR-/AC-,
+   state…), giữ nguyên heading template. Chỗ chưa chắc → "Open questions".
+3. **Đụng API?** → dùng `push_api_doc` như cũ (tự bump `api.version` + CHANGELOG). **Không** sửa
+   `03-api/api-spec.md` bằng tay.
+4. **Ghi nhận thay đổi**: `log_change(id, type, note, ticket?, repull?)` (hoặc `doc-kit log-change`).
+   Bump **`feature.version`**, ghi entry CHANGELOG có phân loại (`bugfix|improvement|chore`), gắn
+   ticket vào `tickets[]`. **Status giữ nguyên** — feature `done` vẫn `done`.
+5. **Đổi hành vi user-facing** → đặt `repull=true` để set `needs_fe_repull` (FE pull lại context).
+6. Thêm task vào `04-fe-tasks.md` với `Loại=bugfix/improvement`, tham chiếu AC + entry CHANGELOG.
+
+Xem skill `maintain-feature`. Nguyên tắc: thay đổi có ý nghĩa = **bump version + ghi CHANGELOG**.
