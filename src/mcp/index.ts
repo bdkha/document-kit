@@ -14,6 +14,8 @@ import {
 } from "../lib/features.js";
 import { featureFiles, sharedDir } from "../lib/paths.js";
 import { pushApi } from "../lib/push-api.js";
+import { logChange } from "../lib/log-change.js";
+import { planForTicket, renderTicketPlan } from "../lib/plan.js";
 import { pendingChanges, ackPull } from "../lib/consumer.js";
 import { addRaw } from "../lib/add-raw.js";
 import { addFigmaLinks } from "../lib/figma.js";
@@ -36,14 +38,18 @@ server.tool(
   "Liệt kê các feature trong kit (id, title, status, api version). Lọc theo status nếu cần.",
   { status: z.enum(["draft", "in-design", "in-dev", "ready", "done"]).optional() },
   async ({ status }) => {
-    const items = listFeatures(status).map((m) => ({
-      id: m.id,
-      title: m.title,
-      status: m.status,
-      apiVersion: m.api?.version ?? 0,
-      needsFeRepull: m.api?.needs_fe_repull ?? false,
-      platforms: m.platforms ?? [],
-    }));
+    const items = listFeatures(status).map((m) => {
+      const last = (m.changes ?? [])[m.changes!.length - 1];
+      return {
+        id: m.id,
+        title: m.title,
+        status: m.status,
+        version: m.version,
+        apiVersion: m.api?.version ?? 0,
+        lastChange: last ? { rev: last.rev, type: last.type, impact: last.impact } : null,
+        platforms: m.platforms ?? [],
+      };
+    });
     return text(JSON.stringify(items, null, 2));
   },
 );
@@ -142,26 +148,45 @@ server.tool(
 
 server.tool(
   "pending_changes",
-  "(FE) Liệt kê feature có API version mới hơn bản consumer này đã pull. FE nên gọi trước khi bắt đầu task để biết API có đổi không.",
-  {},
-  async () => {
-    const items = pendingChanges();
-    if (items.length === 0) return text("Không có API mới cần pull.");
+  "Liệt kê feature có thay đổi (rev) mới hơn bản role này đã pull VÀ ảnh hưởng tới role. " +
+    "FE/BE gọi trước khi bắt đầu task để biết có delta cần xử lý không. role: fe|be (mặc định env DOC_KIT_ROLE hoặc fe).",
+  { role: z.enum(["fe", "be"]).optional().describe("vai consumer; mặc định DOC_KIT_ROLE hoặc fe") },
+  async ({ role }) => {
+    const items = pendingChanges(role);
+    if (items.length === 0) return text("Không có thay đổi mới cần pull cho role này.");
     return text(JSON.stringify(items, null, 2));
   },
 );
 
 server.tool(
   "ack_api_pull",
-  "(FE) Xác nhận consumer đã pull feature tới api version hiện tại (clear pending + cờ broadcast).",
-  { id: z.string() },
-  async ({ id }) => {
+  "Xác nhận role này (fe|be) đã pull feature tới revision hiện tại (clear pending của role).",
+  {
+    id: z.string(),
+    role: z.enum(["fe", "be"]).optional().describe("vai consumer; mặc định DOC_KIT_ROLE hoặc fe"),
+  },
+  async ({ id, role }) => {
     try {
-      const res = ackPull(id);
-      return text(`✅ Đã ack ${res.id} ở api v${res.version}.`);
+      const res = ackPull(id, role);
+      return text(`✅ Đã ack ${res.id} (role ${res.role}) tới rev ${res.rev}.`);
     } catch (e) {
       return fail((e as Error).message);
     }
+  },
+);
+
+server.tool(
+  "plan_for_ticket",
+  "Tra theo TICKET → trả gói plan đã scope cho 1 role: tìm feature chứa ticket, lọc đúng các thay đổi (delta) " +
+    "của ticket trong changes[], kèm spec liên quan (business/api/design theo role) để dựng plan. " +
+    "Dùng cho cả task bảo trì (có change khớp) lẫn feature mới (ticket type=feature → trả full context). role: fe|be.",
+  {
+    ticket: z.string().describe("ticket id, vd ENG-123"),
+    role: z.enum(["fe", "be"]).optional().describe("vai consumer; mặc định DOC_KIT_ROLE hoặc fe"),
+  },
+  async ({ ticket, role }) => {
+    const plans = planForTicket(ticket, role);
+    return text(renderTicketPlan(plans));
   },
 );
 
@@ -171,7 +196,8 @@ server.tool(
   "push_api_doc",
   "BE đẩy OpenAPI (3.x) lên 1 feature. Bạn (AI) quyết định API nào thuộc feature qua paths/tags; " +
     "kit cắt deterministic + kéo theo $ref. Bỏ trống paths&tags = lấy nguyên spec. " +
-    "Validate, ghi openapi.yaml, sinh api-spec.md, bump version, set cờ FE re-pull, ghi changelog.",
+    "Validate, ghi openapi.yaml, sinh api-spec.md, bump api.version + feature.version, ghi change[] (type=api) + changelog. " +
+    "impact: vai cần pull lại (mặc định [fe]).",
   {
     id: z.string().describe("feature id"),
     openapi: z.string().describe("nội dung OpenAPI dạng YAML hoặc JSON (có thể là spec cả service)"),
@@ -181,13 +207,43 @@ server.tool(
       .describe('glob path thuộc feature, vd ["/onboarding/**"]. * = trong 1 segment, ** = nhiều segment.'),
     tags: z.array(z.string()).optional().describe('tag OpenAPI thuộc feature, vd ["onboarding"].'),
     note: z.string().optional().describe("ghi chú thay đổi cho changelog"),
+    impact: z.array(z.enum(["fe", "be"])).optional().describe("vai cần pull lại; mặc định [fe]"),
+    ticket: z.string().optional().describe("ticket gây ra thay đổi API (gắn vào change để plan_for_ticket tìm được)"),
   },
-  async ({ id, openapi, paths, tags, note }) => {
+  async ({ id, openapi, paths, tags, note, impact, ticket }) => {
     try {
-      const res = pushApi(id, openapi, { note, paths, tags });
+      const res = pushApi(id, openapi, { note, paths, tags, impact, ticket });
       return text(
-        `✅ Đã đẩy API cho ${res.featureId}: v${res.apiVersion}, ${res.endpoints} endpoint.\n` +
-          `Sinh api-spec.md, set needs_fe_repull=true.`,
+        `✅ Đã đẩy API cho ${res.featureId}: api v${res.apiVersion}, ${res.endpoints} endpoint.\n` +
+          `Sinh api-spec.md, ghi change[]. Role bị impact nên pending_changes(role).`,
+      );
+    } catch (e) {
+      return fail((e as Error).message);
+    }
+  },
+);
+
+server.tool(
+  "log_change",
+  "Ghi nhận 1 thay đổi BẢO TRÌ (bug fix / cải tiến / chore) lên feature ĐÃ TỒN TẠI — không phải feature mới. " +
+    "Dùng sau khi đã sửa nghiệp vụ/design trực tiếp trong 01/02 (giữ template). Bump feature.version, ghi change[] có cấu trúc " +
+    "(rev + impact) + CHANGELOG, gắn ticket vào tickets[], GIỮ NGUYÊN status. " +
+    "impact = vai cần hành động ([fe], [be], hoặc [fe,be]) — BE cũng có thể cần sửa. docs = mục spec bị đụng (giúp scope plan). " +
+    "Nếu thay đổi đụng API → dùng push_api_doc thay vì tool này.",
+  {
+    id: z.string().describe("feature id"),
+    type: z.enum(["bugfix", "improvement", "chore"]).describe("loại thay đổi bảo trì"),
+    note: z.string().describe("mô tả ngắn thay đổi (vào change[] + CHANGELOG)"),
+    ticket: z.string().optional().describe("ticket id bảo trì, vd ENG-123"),
+    impact: z.array(z.enum(["fe", "be"])).optional().describe("vai cần hành động; mặc định [fe,be]"),
+    docs: z.array(z.string()).optional().describe('mục spec bị đụng, vd ["01-business-spec.md#br-3"]'),
+  },
+  async ({ id, type, note, ticket, impact, docs }) => {
+    try {
+      const res = logChange(id, { type, note, ticket: ticket ? { id: ticket } : undefined, impact, docs });
+      return text(
+        `✅ Đã ghi nhận [${res.type}] cho ${res.featureId}: rev v${res.version}, impact ${res.impact.join("+")}.\n` +
+          `Ghi change[] + CHANGELOG. Status giữ nguyên. Role bị impact nên pending_changes(role).`,
       );
     } catch (e) {
       return fail((e as Error).message);

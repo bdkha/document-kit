@@ -1,13 +1,10 @@
 import fs from "node:fs";
 import yaml from "js-yaml";
 import { featureFiles } from "./paths.js";
-import { readFeatureMeta, writeFeatureMeta } from "./features.js";
+import { readFeatureMeta, writeFeatureMeta, type Role } from "./features.js";
 import { openapiToMarkdown } from "./openapi-to-md.js";
 import { sliceOpenApi, type Selector } from "./openapi-slice.js";
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { today, prependChangelogEntry, appendChange } from "./changelog.js";
 
 export interface PushApiResult {
   featureId: string;
@@ -21,6 +18,10 @@ export interface PushApiOptions {
   /** Selector để cắt 1 OpenAPI lớn về đúng feature. Bỏ trống = lấy nguyên spec. */
   paths?: string[];
   tags?: string[];
+  /** Vai cần hành động. Mặc định [fe] (BE đẩy API cho FE consume). */
+  impact?: Role[];
+  /** Ticket gây ra thay đổi API (gắn vào change entry để plan_for_ticket tìm được). */
+  ticket?: string;
 }
 
 function countEndpoints(spec: any): number {
@@ -37,7 +38,7 @@ function countEndpoints(spec: any): number {
  *  - validate sơ bộ (có paths)
  *  - ghi openapi.yaml (source of truth)
  *  - sinh api-spec.md (AI-friendly)
- *  - bump api.version, set needs_fe_repull, ghi CHANGELOG, cập nhật feature.yaml
+ *  - bump api.version + feature.version, ghi changes[] (type=api) + CHANGELOG, cập nhật feature.yaml
  */
 export function pushApi(featureId: string, openapiContent: string, opts: PushApiOptions = {}): PushApiResult {
   const meta = readFeatureMeta(featureId); // throw nếu feature không tồn tại
@@ -62,6 +63,7 @@ export function pushApi(featureId: string, openapiContent: string, opts: PushApi
   const prevVersion = meta.api?.version ?? 0;
   const apiVersion = prevVersion + 1;
   const date = today();
+  const impact: Role[] = opts.impact && opts.impact.length ? opts.impact : ["fe"];
 
   // 1) Ghi source of truth (chuẩn hoá về yaml)
   fs.mkdirSync(f.apiDir, { recursive: true });
@@ -71,36 +73,35 @@ export function pushApi(featureId: string, openapiContent: string, opts: PushApi
   const md = openapiToMarkdown(spec, { featureId, apiVersion, updatedAt: date });
   fs.writeFileSync(f.apiSpec, md, "utf8");
 
-  // 3) Cập nhật metadata
-  meta.api = { ...(meta.api ?? {}), version: apiVersion, needs_fe_repull: true };
+  // 3) Cập nhật metadata: bump cả api.version (header api-spec) lẫn feature.version (revision chung)
+  const endpoints = countEndpoints(spec);
+  meta.api = { ...(meta.api ?? {}), version: apiVersion };
+  meta.version = (meta.version ?? 1) + 1;
   meta.updated_at = date;
   // Nếu feature còn draft mà BE đã có API, đẩy tối thiểu sang in-dev
   if (meta.status === "draft" || meta.status === "in-design") meta.status = "in-dev";
+  appendChange(meta, {
+    rev: meta.version,
+    date,
+    type: "api",
+    note: opts.note ? opts.note : `BE đẩy OpenAPI: ${endpoints} endpoint.`,
+    tickets: opts.ticket ? [opts.ticket] : undefined,
+    impact,
+  });
   writeFeatureMeta(featureId, meta);
 
-  // 4) Ghi CHANGELOG
-  const endpoints = countEndpoints(spec);
+  // 4) Ghi CHANGELOG (bản người-đọc)
   const entry = [
     `## api v${apiVersion} — ${date}`,
     `- BE đẩy OpenAPI: ${endpoints} endpoint.`,
     opts.note ? `- Ghi chú: ${opts.note}` : null,
-    `- ⚠️ FE cần re-pull: có (needs_fe_repull=true)`,
+    `- Impact: ${impact.join(", ")}`,
     "",
   ]
     .filter(Boolean)
     .join("\n");
 
-  const existing = fs.existsSync(f.changelog) ? fs.readFileSync(f.changelog, "utf8") : `# Changelog — ${meta.title}\n\n`;
-  const lines = existing.split("\n");
-  // Chèn trước mục "## " đầu tiên (entry mới nhất lên đầu, giữ phần prose ở trên).
-  // Nếu chưa có mục nào thì chèn sau dòng tiêu đề "# ".
-  let insertAt = lines.findIndex((l) => /^## /.test(l));
-  if (insertAt < 0) {
-    const headerIdx = lines.findIndex((l) => l.startsWith("# "));
-    insertAt = headerIdx >= 0 ? headerIdx + 1 : 0;
-  }
-  lines.splice(insertAt, 0, entry, "");
-  fs.writeFileSync(f.changelog, lines.join("\n"), "utf8");
+  prependChangelogEntry(f.changelog, entry, meta.title);
 
   return { featureId, apiVersion, endpoints, apiSpecPath: f.apiSpec };
 }

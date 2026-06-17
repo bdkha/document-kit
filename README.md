@@ -18,31 +18,6 @@ BA (docs thô + Figma) ──▶ [ DOCS REPO của dự án ] ◀── BE (Open
 
 Tool cài/chạy qua npm; mỗi dự án có một repo docs riêng tạo bằng `doc-kit init`.
 
-## Bắt đầu cho một dự án mới
-
-```bash
-# Tạo repo docs cho dự án (chạy trong thư mục repo docs trống)
-npx -p @bdkha/document-kit doc-kit init
-cp .env.example .env            # điền LINEAR_API_KEY, DOC_KIT_CONSUMER…
-
-# Tạo feature
-npx -p @bdkha/document-kit doc-kit new "User Onboarding"
-
-# BA nạp docs thô: file local, link Notion (fetch nội dung + trích Figma), link Figma
-npx -p @bdkha/document-kit doc-kit add-raw F-001-user-onboarding ./brief.pdf "https://notion.so/..."
-npx -p @bdkha/document-kit doc-kit add-figma F-001-user-onboarding "https://figma.com/design/...node-id=1-23" --name "Onboarding flow"
-
-# BE đẩy OpenAPI vào 1 feature (AI chọn paths/tags, kit cắt deterministic)
-npx -p @bdkha/document-kit doc-kit push-api F-001-user-onboarding ./openapi.json --tags onboarding
-
-# FE: xem API mới so với bản đã pull, rồi xác nhận
-npx -p @bdkha/document-kit doc-kit pending
-npx -p @bdkha/document-kit doc-kit ack F-001-user-onboarding
-
-# Validate toàn bộ docs
-npx -p @bdkha/document-kit doc-kit validate
-```
-
 ## Luồng theo vai trò trong Claude Code
 
 Cài skills một lần để dùng slash command ở mọi repo:
@@ -65,10 +40,10 @@ Một feature đi qua 3 vai trò theo vòng: **BA → BE → FE** (và lặp l�
 
 | # | Làm gì | Trong Claude Code |
 |---|--------|-------------------|
-| 1 | Planning | Skill planning gọi `find_feature(ticket)` → `get_feature(id)` → đọc business-spec để plan API theo AC |
+| 1 | Planning | **`/plan-task`**: `plan_for_ticket(ticket, role="be")` → đọc business-spec để plan API theo AC (chỉ Δ nếu là bảo trì) |
 | 2 | Code | Hiện thực endpoint (NestJS…) |
 | 3 | Export OpenAPI | `scripts/export-openapi.ts` (xem `integrations/nestjs/`) → `openapi.json` |
-| 4 | Gắn API vào feature | **`/attach-api`**: chọn `--tags`/`--paths` thuộc feature → `push_api_doc` → kit sinh `api-spec.md`, bump `api.version`, set `needs_fe_repull`, `status: in-dev` |
+| 4 | Gắn API vào feature | **`/attach-api`**: chọn `--tags`/`--paths` thuộc feature → `push_api_doc` → kit sinh `api-spec.md`, bump `api.version` + `feature.version`, ghi `changes[]` (impact mặc định `[fe]`), `status: in-dev` |
 | 5 | Báo FE | `doc-kit notify <id>` (báo vào ticket Linear/Redmine của feature) — hoặc để CI tự làm |
 
 → Đầu ra: `03-api/openapi.yaml` (nguồn) + `api-spec.md` (AI-friendly) gắn đúng feature.
@@ -77,14 +52,132 @@ Một feature đi qua 3 vai trò theo vòng: **BA → BE → FE** (và lặp l�
 
 | # | Làm gì | Trong Claude Code |
 |---|--------|-------------------|
-| 1 | Xem API có đổi | `pending_changes()` (CLI: `doc-kit pending`) |
-| 2 | Planning | `find_feature(ticket)` → `get_feature(id)` → plan theo **AC + api-spec + design-spec** |
+| 1 | Planning theo ticket | **`/plan-task`**: `plan_for_ticket(ticket, role="fe")` → feature + Δ thay đổi + **AC + api-spec + design-spec** |
+| 2 | Xem việc đang chờ | `pending_changes(role="fe")` (CLI: `doc-kit pending --role fe`) |
 | 3 | Code | Làm UI/màn hình, ghép API theo `api-spec`, state loading/empty/error theo `design-spec` |
-| 4 | Xác nhận đã pull | `ack_api_pull(id)` (CLI: `doc-kit ack <id>`) để clear cờ pending |
+| 4 | Xác nhận đã pull | `ack_api_pull(id, role="fe")` (CLI: `doc-kit ack <id> --role fe`) để clear pending của vai |
 
 → Mỗi task tự đủ ngữ cảnh: AC nào, endpoint nào, screen nào.
 
-> Cách nối Bước-0 vào skill planning có sẵn của bạn: xem [`integrations/consumer/`](integrations/consumer/README.md).
+### 🔧 Bảo trì — bug fix / cải tiến trên feature đã có
+
+Agile: feature `done` rồi vẫn có task sửa bug / cải tiến nhỏ — **không** tạo feature mới. Mỗi thay đổi ghi
+`impact: [fe|be]` → **cả FE lẫn BE** đều được báo đúng phần việc của mình (không chỉ FE).
+
+| # | Làm gì | Trong Claude Code |
+|---|--------|-------------------|
+| 1 | Map ticket → feature | `find_feature(ticket)` (CLI: `doc-kit find --ticket …`) |
+| 2 | Sửa spec tại chỗ | **`/maintain-feature`**: chỉnh đúng phần đổi trong `01`/`02` (giữ template) |
+| 3 | Ghi nhận | `log_change(id, type, note, ticket?, impact, docs?)` (CLI: `doc-kit log-change … --impact fe,be`) → bump `feature.version`, ghi `changes[]` (rev + impact) + CHANGELOG, gắn ticket. **Status giữ nguyên** |
+| 4 | Đụng API? | Dùng **`/attach-api`** → `push_api_doc` (bump api.version + feature.version, ghi `changes[]`) |
+
+→ Đầu ra: spec được vá đúng phạm vi + `changes[]` (impact) + CHANGELOG. FE & BE bị impact tự thấy delta qua
+`pending_changes(role)` / `plan_for_ticket`.
+
+> Cách nối Bước-0 (planning theo ticket, role-aware) vào skill có sẵn: xem [`integrations/consumer/`](integrations/consumer/README.md).
+
+## Ví dụ & tham chiếu lệnh
+
+> Các ví dụ giả định bạn **đứng trong repo docs** nên gọi `doc-kit` trực tiếp (thực tế dùng
+> `npx -p @bdkha/document-kit doc-kit …`). Content root (chỗ chứa `features/`) tự dò từ cwd; khi chạy
+> từ nơi khác (vd MCP) set `DOC_KIT_ROOT=/đường/dẫn/repo-docs`.
+
+**Feature mới (end-to-end):**
+
+```bash
+doc-kit init && cp .env.example .env        # khởi tạo repo docs 1 lần
+doc-kit new "User Onboarding"               # → features/F-001-user-onboarding/
+doc-kit add-raw   F-001-user-onboarding ./brief.pdf "https://www.notion.so/..."
+doc-kit add-figma F-001-user-onboarding "https://figma.com/design/...?node-id=1-23" --name "Onboarding flow"
+# /compile-feature trong Claude Code → sinh 01-business-spec.md + 02-design-spec.md (BA review)
+doc-kit push-api F-001-user-onboarding ./openapi.json --tags onboarding --note "Khởi tạo API"
+doc-kit plan    --ticket ENG-101 --role fe  # FE lập plan → code
+doc-kit ack     F-001-user-onboarding --role fe
+```
+
+**Bảo trì (bug fix / cải tiến) trên feature đã `done`** — không tạo feature mới, status giữ nguyên:
+
+```bash
+# Đổi business rule/AC → impact CẢ fe,be (BE cũng phải sửa API/logic)
+doc-kit log-change F-001-user-onboarding --type bugfix \
+  --note "Sửa rule validate email cho đúng AC-2" --ticket ENG-220 --impact fe,be --docs 01-business-spec.md#br-1
+# Cải tiến chỉ đụng UI → impact fe (BE sẽ KHÔNG thấy pending)
+doc-kit log-change F-001-user-onboarding --type improvement --note "Gợi ý mật khẩu mạnh" --impact fe
+# Thay đổi ĐỤNG API → dùng push-api (đừng log-change); nó tự ghi changes type=api
+doc-kit push-api F-001-user-onboarding ./openapi.json --tags onboarding --impact fe,be --ticket ENG-220
+```
+
+**Lập plan từ ticket (FE & BE)** — bảo trì chỉ trả Δ thay đổi của ticket; ticket feature mới trả full context:
+
+```bash
+doc-kit plan --ticket ENG-220 --role be    # BE: business(AC/BR) + api-spec + Δ change
+doc-kit plan --ticket ENG-220 --role fe    # FE: thêm design-spec
+doc-kit pending --role be                  # quét mọi feature có change ảnh hưởng vai be
+```
+
+Output (rút gọn) của `plan --role be`:
+
+```
+# Plan context cho ticket ENG-220 (role: be)
+Feature: F-001-user-onboarding — User Onboarding [done]
+## Δ Cần làm (đúng thay đổi của ticket — chỉ plan phần này)
+- rev 3 [bugfix] — Sửa rule validate email cho đúng AC-2  (impact: fe+be)
+  docs: 01-business-spec.md#br-1
+--- ## BUSINESS SPEC … --- ## API SPEC …
+```
+
+### Tham chiếu CLI đầy đủ
+
+| Lệnh | Mục đích | Cờ chính |
+|---|---|---|
+| `doc-kit init [dir]` | Khởi tạo repo docs | |
+| `doc-kit new "<Tên>"` | Tạo feature từ template | |
+| `doc-kit add-raw <id> <path\|url…>` | Nạp docs thô vào `00-raw/` | `--no-figma` |
+| `doc-kit add-figma <id> <url>` | Thêm Figma link vào `feature.yaml` | `--name`, `--node` |
+| `doc-kit push-api <id> <openapi>` | Đẩy OpenAPI, sinh `api-spec.md` | `--tags`, `--paths`, `--note`, `--impact`, `--ticket` |
+| `doc-kit log-change <id>` | Ghi thay đổi bảo trì | `--type`, `--note`, `--ticket`, `--impact`, `--docs` |
+| `doc-kit plan` | Gói plan đã scope theo ticket | `--ticket` (bắt buộc), `--role` |
+| `doc-kit pending` | Feature có thay đổi ảnh hưởng vai | `--role`, `--state` |
+| `doc-kit ack <id>` | Xác nhận đã pull tới rev hiện tại | `--role`, `--state` |
+| `doc-kit find` | Tìm feature | `--ticket`, `--query`, `--status` |
+| `doc-kit list [status]` | Liệt kê feature | |
+| `doc-kit context <id>` | In trọn gói context | |
+| `doc-kit notify <id>` | Báo ticket (Linear/Redmine) | `--note` |
+| `doc-kit validate` | Validate toàn bộ kit | |
+| `doc-kit install-skills [dir]` | Cài skills cho Claude Code | `--global` |
+| `doc-kit mcp` | Chạy MCP server (stdio) | |
+
+Mọi lệnh đọc/ghi đều nhận `--ci` để in JSON (cho agent/CI), exit code `!=0` khi lỗi.
+
+### Tham chiếu MCP tool
+
+Gọi trực tiếp trong Claude Code khi đã trỏ MCP vào repo docs:
+
+| Tool | Tương đương CLI |
+|---|---|
+| `list_features(status?)` | `doc-kit list` |
+| `find_feature({ticket\|query\|status})` | `doc-kit find` |
+| `get_feature(id)` | `doc-kit context` |
+| `get_business_spec / get_design_spec / get_api_spec (id)` | — (đọc từng doc) |
+| `get_shared_doc(name)` | — (glossary/data-models/conventions) |
+| `search_docs(query)` | — (full-text trong mọi feature) |
+| `plan_for_ticket(ticket, role?)` | `doc-kit plan --ticket --role` |
+| `pending_changes(role?)` | `doc-kit pending --role` |
+| `ack_api_pull(id, role?)` | `doc-kit ack --role` |
+| `push_api_doc(id, openapi, paths?, tags?, note?, impact?, ticket?)` | `doc-kit push-api` |
+| `log_change(id, type, note, ticket?, impact?, docs?)` | `doc-kit log-change` |
+| `add_figma_link / add_raw_url / submit_raw` | `doc-kit add-figma / add-raw` |
+
+### Mô hình dữ liệu cần nhớ
+
+- **`feature.version` = revision**: số đếm tăng dần, bump bởi **cả** `push-api` lẫn `log-change`.
+  `api.version` là version riêng của OpenAPI/`api-spec.md`.
+- **`feature.yaml.changes[]`** (máy đọc) — nguồn để suy ra pending/plan. Mỗi entry:
+  `{ rev, date, type, note, tickets[], impact:[fe|be], docs[] }`. `CHANGELOG.md` là bản người-đọc.
+- **`impact`** quyết định **ai** cần hành động. Đổi business rule/AC → thường `[fe, be]`.
+- **role** (`fe|be`, qua `DOC_KIT_ROLE` hoặc cờ `--role`): pending/plan chỉ trả phần ảnh hưởng vai đó.
+- **pending** = có change `rev > revision đã ack` **và** `role ∈ change.impact`. **ack** lưu theo role.
+- **status** `draft → in-design → in-dev → ready → done`: task bảo trì **không** đổi status.
 
 ## Cấu hình (per-project)
 
@@ -126,12 +219,16 @@ qua `DOC_KIT_ROOT`, hoặc dò ngược từ cwd tìm `.doc-kit/config.yaml`.
 
 ## Skills cho Claude Code (dùng MCP Notion/Figma + suy luận)
 
-Kit kèm 3 skill, tận dụng MCP kết nối sẵn của Claude (không cần token CLI):
+Kit kèm 5 skill, tận dụng MCP kết nối sẵn của Claude (không cần token CLI):
 
 - **`ingest-feature`** — kéo docs từ Notion + Figma vào feature (Notion MCP đọc nội dung,
   Figma MCP phân tích frame, model map frame↔usecase/AC).
 - **`compile-feature`** — biên dịch 00-raw + Figma → business/design spec.
 - **`attach-api`** — BE gắn OpenAPI vào đúng feature.
+- **`maintain-feature`** — bug fix / cải tiến trên feature đã có: sửa spec tại chỗ +
+  `log_change` (bump version + `changes[]` có impact, giữ status).
+- **`plan-task`** — ở repo FE/BE: ticket → `plan_for_ticket(role)` → dựng plan theo delta (feature mới
+  hoặc bảo trì).
 
 Claude Code chỉ tự nạp skills ở **project root**, không nạp trong submodule. Cài để dùng ở bất kỳ repo:
 
@@ -141,9 +238,9 @@ npx -p @bdkha/document-kit doc-kit install-skills          # -> ./.claude/skills
 npx -p @bdkha/document-kit doc-kit install-skills --global # -> ~/.claude/skills (mọi project)
 ```
 
-Rồi trong Claude Code gõ `/ingest-feature`, `/compile-feature`, `/attach-api`.
+Rồi trong Claude Code gõ `/ingest-feature`, `/compile-feature`, `/attach-api`, `/maintain-feature`, `/plan-task`.
 
-## Tiêu dùng từ repo FE/BE (đọc docs lúc planning)
+## Tiêu dùng từ repo FE/BE (lập plan theo ticket)
 
 Add repo docs của dự án làm submodule, trỏ MCP vào đó, rồi cho skill planning kéo context:
 
@@ -151,13 +248,11 @@ Add repo docs của dự án làm submodule, trỏ MCP vào đó, rồi cho skil
 git submodule add <repo-docs-url> docs/kit
 ```
 
-`.mcp.json` ở root repo FE/BE trỏ `DOC_KIT_ROOT=${workspaceFolder}/docs/kit`. Skill planning
-gọi `find_feature(ticket)` → `get_feature(id)` để lập plan theo AC + api-spec + design-spec.
-Chi tiết + block dán vào skill planning: xem [`integrations/consumer/`](integrations/consumer/README.md).
-
-Lệnh hỗ trợ planning:
-- `doc-kit find --ticket ENG-123` — map ticket/branch → feature id.
-- `doc-kit context <id>` — in trọn gói context để nhúng vào plan.
+`.mcp.json` ở root repo FE/BE trỏ `DOC_KIT_ROOT=${workspaceFolder}/docs/kit` + `DOC_KIT_ROLE=fe|be`.
+Skill planning gọi **`plan_for_ticket(ticket, role)`** → feature + Δ thay đổi của ticket + spec liên quan
+để lập plan (scope theo delta cho cả task mới lẫn bảo trì). Lệnh CLI tương đương: xem [bảng tham
+chiếu](#tham-chiếu-cli-đầy-đủ). Chi tiết block dán vào skill: xem
+[`integrations/consumer/`](integrations/consumer/README.md).
 
 ## Phát triển tool này
 
@@ -172,7 +267,7 @@ DOC_KIT_ROOT=examples/sample-docs node dist/cli/index.js list
 - `templates/`, `scaffold/`, `.doc-kit/schema/` — asset shipped trong package.
 - `examples/sample-docs/` — content mẫu để dev/test (không publish).
 - `integrations/nestjs/` — script export OpenAPI + workflow CI mẫu.
-- `.claude/skills/` — skill `compile-feature`, `attach-api`.
+- `.claude/skills/` — skill `ingest-feature`, `compile-feature`, `attach-api`, `maintain-feature`, `plan-task`.
 
 ## Publish (CI tự động)
 

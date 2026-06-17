@@ -9,11 +9,13 @@ owners:
   fe: ""
   be: ""
 
-# Ticket pluggable — bỏ trống nếu chưa gắn
+# Ticket pluggable — bỏ trống nếu chưa gắn. Task bảo trì dùng log-change sẽ tự
+# thêm ticket vào đây với type tương ứng.
 tickets:
   - system: linear              # linear | jira | github | redmine | none
     id: ENG-000                 # redmine: id số, vd 1234 hoặc #1234
     url: ""
+    type: feature               # feature | bugfix | improvement | chore
 
 # Link Figma (dùng cho skill compile-feature qua Figma MCP)
 figma:
@@ -24,7 +26,18 @@ figma:
 api:
   version: 0                    # 0 = BE chưa đẩy. >=1 khi đã có OpenAPI
   source: nestjs-swagger
-  needs_fe_repull: false        # cờ set true khi BE đẩy bản API mới
+
+# Lịch sử thay đổi có cấu trúc (máy đọc) — push-api/log-change tự ghi.
+# Pending/plan theo role suy ra từ đây (rev + impact). CHANGELOG.md là bản người-đọc.
+changes: []
+# Mẫu entry:
+#  - rev: 2                     # = version tại thời điểm thay đổi
+#    date: "1970-01-01"
+#    type: bugfix               # feature | bugfix | improvement | chore | api
+#    note: "Sửa rule validate email cho đúng AC-2"
+#    tickets: [ENG-9]
+#    impact: [fe, be]           # vai cần hành động
+#    docs: ["01-business-spec.md#br-3"]
 
 platforms: [web, react-native]
 

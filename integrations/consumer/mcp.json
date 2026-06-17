@@ -4,7 +4,8 @@
       "command": "npx",
       "args": ["-y", "-p", "@bdkha/document-kit", "doc-kit", "mcp"],
       "env": {
-        "DOC_KIT_ROOT": "${workspaceFolder}/docs/kit"
+        "DOC_KIT_ROOT": "${workspaceFolder}/docs/kit",
+        "DOC_KIT_ROLE": "fe"
       }
     }
   }

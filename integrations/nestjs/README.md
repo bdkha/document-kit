@@ -49,8 +49,8 @@ npx -p @bdkha/document-kit doc-kit push-api F-002-wallet openapi.json --paths "/
 npx -p @bdkha/document-kit doc-kit push-api F-010-payments openapi.json
 ```
 
-Tool sẽ: ghi `03-api/openapi.yaml`, sinh `api-spec.md`, bump `api.version`,
-set `needs_fe_repull=true`, ghi CHANGELOG.
+Tool sẽ: ghi `03-api/openapi.yaml`, sinh `api-spec.md`, bump `api.version` + `feature.version`,
+ghi `changes[]` (impact mặc định `[fe]`) + CHANGELOG. Role bị impact thấy qua `pending_changes(role)`.
 
 ## 4. Tự động qua CI
 

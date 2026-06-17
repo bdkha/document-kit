@@ -36,7 +36,12 @@
         "properties": {
           "system": { "type": "string", "enum": ["linear", "jira", "github", "redmine", "none"] },
           "id": { "type": "string" },
-          "url": { "type": "string" }
+          "url": { "type": "string" },
+          "type": {
+            "type": "string",
+            "enum": ["feature", "bugfix", "improvement", "chore"],
+            "description": "Loại ticket: feature (mới) | bugfix | improvement | chore (bảo trì)"
+          }
         }
       }
     },
@@ -58,8 +63,33 @@
       "additionalProperties": false,
       "properties": {
         "version": { "type": "integer", "minimum": 0 },
-        "source": { "type": "string" },
-        "needs_fe_repull": { "type": "boolean" }
+        "source": { "type": "string" }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "description": "Lịch sử thay đổi có cấu trúc (máy đọc). CHANGELOG.md là bản người-đọc tương ứng.",
+      "items": {
+        "type": "object",
+        "required": ["rev", "date", "type", "note", "impact"],
+        "additionalProperties": false,
+        "properties": {
+          "rev": { "type": "integer", "minimum": 1, "description": "= feature.version tại thời điểm thay đổi" },
+          "date": { "type": "string", "format": "date" },
+          "type": { "type": "string", "enum": ["feature", "bugfix", "improvement", "chore", "api"] },
+          "note": { "type": "string" },
+          "tickets": { "type": "array", "items": { "type": "string" } },
+          "impact": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["fe", "be"] },
+            "description": "Vai cần hành động sau thay đổi này"
+          },
+          "docs": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Mục spec bị đụng, vd 01-business-spec.md#br-3 (giúp scope plan)"
+          }
+        }
       }
     },
     "platforms": {
