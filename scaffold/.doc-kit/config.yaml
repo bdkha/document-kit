@@ -3,7 +3,7 @@ version: 1
 
 # Hệ thống ticket mặc định (pluggable). Mỗi dự án sau này có thể override.
 ticket:
-  default_system: linear        # linear | jira | github | none
+  default_system: linear        # linear | jira | github | redmine | none
   systems:
     linear:
       url_template: "https://linear.app/{org}/issue/{id}"
@@ -14,6 +14,9 @@ ticket:
     github:
       url_template: "https://github.com/{org}/{repo}/issues/{id}"
       id_pattern: "^[0-9]+$"
+    redmine:                        # thường self-host: base_url lấy từ env REDMINE_URL
+      url_template: "{base_url}/issues/{id}"
+      id_pattern: "^#?[0-9]+$"       # vd 1234 hoặc #1234
 
 # Quy ước feature id: <prefix>-<số tăng dần>-<slug>
 feature:

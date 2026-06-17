@@ -34,7 +34,7 @@
         "required": ["system", "id"],
         "additionalProperties": false,
         "properties": {
-          "system": { "type": "string", "enum": ["linear", "jira", "github", "none"] },
+          "system": { "type": "string", "enum": ["linear", "jira", "github", "redmine", "none"] },
           "id": { "type": "string" },
           "url": { "type": "string" }
         }
